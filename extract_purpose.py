@@ -339,12 +339,12 @@ def extract_purpose(name=None, title=None, body1=None, body2=None, prev=None):
     # print("3단계: " + excluded_text)
     
     cleaner = MediaMentionCleaner()
-    cleaned = cleaner.erase(excluded_text)
+    cleaned = cleaner.clean(excluded_text)
 
     # 6. OOO 의원은 "….." 고 했다, 말했다  --> OOO 의원의 발언
     # 7. OOO 의원은 "….." 고 비판, 주장, 비난, 반박했다 등  --> OOO 의원의 비판, 주장, 비난, 반박 등
     simplified_text = simplify_purpose(cleaned, name)
-    # print("목적배경취지: " + simplified_text)
+    print("목적배경취지: " + simplified_text)
 
     return simplified_text
 

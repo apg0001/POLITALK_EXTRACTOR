@@ -1,8 +1,5 @@
-from transformers import BartForConditionalGeneration
-import torch
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, pipeline
 import nltk
-import stanza
 import re
 from collections import defaultdict
 from text_manager import nlp
@@ -24,61 +21,93 @@ class Summarizer:
         return nltk.sent_tokenize(decoded.strip())[0]
 
 
+def remove_parentheses_content(text: str) -> str:
+    # 괄호쌍: (), [], <>, 〈〉, 《》
+    pattern = r'[\(\[\<〈《][^)\]\>〉》]*[\)\]\>〉》]'
+    cleaned = re.sub(pattern, '', text)
+    return re.sub(r'\s{2,}', ' ', cleaned).strip()
+
+
+import re
+
+def remove_parentheses_content(text: str) -> str:
+    pattern = r'[\(\[\<〈《][^)\]\>〉》]*[\)\]\>〉》]'
+    cleaned = re.sub(pattern, '', text)
+    return re.sub(r'\s{2,}', ' ', cleaned).strip()
+
+
 def restore_names_from_original(original: str, summary: str) -> str:
+    POSITION_SUFFIXES = ["의원", "장", "전", "당", "대표", "수석"]
+    MAX_NAME_BLOCK = 4  # 최대 4단어까지 이름 블록으로 간주
+
     def split_words(text):
-        return re.findall(r'\b\w+\b', text)
+        return re.findall(r'\b[\w가-힣]+\b', text)
 
+    def get_position_suffix(word: str) -> str | None:
+        for suffix in POSITION_SUFFIXES:
+            if suffix in word:
+                return suffix
+        return None
+    
+    def ends_with_particle(text):
+        return text.endswith(("은", "는", "이", "가", "와", "과", "도"))
+
+    original = remove_parentheses_content(original)
     original_words = split_words(original)
-    # print(original_words)
     summary_words = split_words(summary)
-    # print(summary_words)
 
-    # 2단어씩 묶은 후보들
-    original_pairs = [(original_words[i], original_words[i+1])
-                      for i in range(len(original_words) - 1)]
-    summary_pairs = [(summary_words[i], summary_words[i+1])
+    # 원문에서 2~4단어씩 블록 추출
+    original_blocks = []
+    for i in range(len(original_words)):
+        for size in range(2, MAX_NAME_BLOCK + 1):
+            if i + size <= len(original_words):
+                block = original_words[i:i + size]
+                original_blocks.append(block)
+
+    # 요약문 2단어쌍
+    summary_pairs = [(summary_words[i], summary_words[i + 1])
                      for i in range(len(summary_words) - 1)]
 
-    # 매핑된 short → full 딕셔너리
     replacement_map = {}
 
-    for o1, o2 in original_pairs:
+    for block in original_blocks:
+        if len(block) < 2:
+            continue
+        full_name = ' '.join(block)
+        o1 = block[0]
+        o2 = block[-1]  # 직책 추정
+
         for s1, s2 in summary_pairs:
-            # short: 김 의원 / full: 김철수 의원
-            if o1[0] == s1 and o2 == s2 and len(o1) >= 2:
+            suffix_o = get_position_suffix(o2)
+            suffix_s = get_position_suffix(s2)
+            if (
+                o1[0] == s1 and
+                (o2 == s2 or (suffix_o and suffix_o == suffix_s)) and
+                len(o1) >= 2 and
+                len(o1) <= 3
+            ):
                 short_form = f"{s1} {s2}"
-                full_form = f"{o1} {o2}"
-                replacement_map[short_form] = full_form
-                
+                if (
+                    short_form not in replacement_map or
+                    len(full_name) < len(replacement_map[short_form])
+                ):
+                    replacement_map[short_form] = full_name
+
     print(replacement_map)
 
-    # 실제 교체 수행
+    # 실제 치환
     for short, full in replacement_map.items():
-        summary = summary.replace(short, full)
+        if short in full:
+            continue
+        if (ends_with_particle(short) and ends_with_particle(full)) or \
+            (not ends_with_particle(short) and not ends_with_particle(full)):
+            summary = summary.replace(short, full)
 
     return summary
 
 
-class TopicExtractor:
-    def __init__(self):
-        self.summarizer = Summarizer()
-        self.remover = RedundancyRemover()
-
-    def extract_topic(self, title = None, body = None, purpose = None, sentence = None, name = None):
-        summary = self.summarizer.summarize(body)
-        print(f"\n요약 결과:\t{summary}")
-        
-        removed = self.remover.trim_redundant_block(summary)
-        print(f"중복 제거:\t{removed}")
-
-        replaced = restore_names_from_original(body, removed)
-        print(f"이름 복원:\t{replaced}")
-
-        return replaced
-
-
 class RedundancyRemover:
-    def __init__(self, min_common_len=5):
+    def __init__(self, min_common_len=3):
         self.min_common_len = min_common_len
         self._init_nlp()
 
@@ -123,31 +152,107 @@ class RedundancyRemover:
                         length += 1
                     if length >= self.min_common_len and length > max_len:
                         max_len = length
-                        max_start = start2
-                        max_end = start2 + length
+                        max_start = start1
+                        max_end = start1 + length
 
         # 제거할 중복 구간이 있다면 제거
         if max_len >= self.min_common_len:
             new_tokens = tokens[:max_start] + tokens[max_end:]
-            return ' '.join(new_tokens)
+            return ' '.join(new_tokens).replace(" .", ".")
+
         return text
+
+
+# class RedundancyRemover:
+#     POSITION_SUFFIXES = ["의원", "장", "당", "대표", "수석"]
+#     def __init__(self, min_common_len=3):
+#         self.min_common_len = min_common_len
+#         self._init_nlp()
+
+#     def _init_nlp(self):
+#         # self.nlp = stanza.Pipeline(...)
+#         self.nlp = nlp  # 외부에서 주입한 stanza Pipeline
+
+#     def tokenize(self, text: str):
+#         doc = self.nlp(text)
+#         return [word.text for sent in doc.sentences for word in sent.words]
+
+#     def lemmatize(self, text: str):
+#         doc = self.nlp(text)
+#         # print(doc)
+#         return [word.lemma.split('+')[0] for sent in doc.sentences for word in sent.words]
+
+#     def trim_redundant_block(self, text: str) -> str:
+#         while True:
+#             tokens = self.tokenize(text)
+#             lemmas = self.lemmatize(text)
+            
+#             print(lemmas)
+
+#             # lemma → 등장 인덱스 기록
+#             lemma_map = defaultdict(list)
+#             for idx, lemma in enumerate(lemmas):
+#                 lemma_map[lemma].append(idx)
+
+#             # 가장 긴 반복 구간 탐색
+#             max_start, max_end, max_len = -1, -1, 0
+
+#             for lemma, indices in lemma_map.items():
+#                 if len(indices) < 2:
+#                     continue
+#                 for i in range(len(indices)):
+#                     for j in range(i + 1, len(indices)):
+#                         start1, start2 = indices[i], indices[j]
+#                         length = 0
+#                         while (start1 + length < start2 and
+#                                start2 + length < len(lemmas) and
+#                                lemmas[start1 + length] == lemmas[start2 + length]):
+#                             length += 1
+#                         if length >= self.min_common_len and length > max_len:
+#                             max_len = length
+#                             max_start = start1
+#                             max_end = start1 + length
+
+#             # 제거할 중복 구간이 없다면 종료
+#             if max_len < self.min_common_len:
+#                 break
+
+#             # 중복 구간 제거
+#             tokens = tokens[:max_start] + tokens[max_end:]
+
+#             text = ' '.join(tokens).replace(" .", ".")
+
+#         return text
+
+class TopicExtractor:
+    def __init__(self):
+        self.summarizer = Summarizer()
+        self.remover = RedundancyRemover()
+
+    def extract_topic(self, title=None, body=None, purpose=None, sentence=None, name=None):
+        summary = self.summarizer.summarize(body.replace("\n", " "))
+        print(f"\n요약 결과:\t{summary}")
+
+        # 본문이 없는 경우 빈칸 반환
+        if body == "" or "nan" in summary:
+            return ""
+
+        removed = self.remover.trim_redundant_block(summary)
+        print(f"중복 제거:\t{removed}")
+
+        replaced = restore_names_from_original(body, removed)
+        print(f"이름 복원:\t{replaced}")
+
+        return replaced
 
 
 # 🔍 예시 실행
 if __name__ == "__main__":
     title = "김 의원, 장애인예술단 설립 질의"
     body1 = """
-    30분간 언쟁이 오가고 김한표 당시 통합당 원내수석부대표가 회의장에 들어오고 나서야 충돌은 중단됐다. 김승희 전 통합당 의원은 2일 중앙일보와 통화에서 "저 역시 공공의료 확충에 반대하는 것은 아니었다. 하지만 지역에 공공의대를 따로 만들지 않더라도, 기존 의대 졸업생들에게 인센티브를 제공하는 방식으로 공공의료 인력을 늘릴 수도 있는데, 여당이 선거를 앞두고 밀어붙이는 게 옳지 않다고 반대했을 뿐"이라고 말했다.
-김 전 의원은 정세균 총리와의 전화에 대해서도 "정확한 시점은 기억나지 않는다"며 "정 총리 전화가 강압적인 분위기는 아니었다. ‘서남대 의대 정원만큼 남원에 공공의료원을 만들테니 도와달라’는 내용의 정중한 전화였다"고 말했다. 정세균 국무총리는 전북 남원과 인접한 전북 진안·무주·장수 지역구에서 15~18대 국회의원을 지냈다.
-    """
-#     body2 = """
-#     김현권 국회의원(더불어민주당·비례대표·사진)은 "최근 국방부의 통합신공항 부지선정 발표를 환영한다"면서 "앞으로 구미시를 신공항 배후 교통·물류·산업의 중심지로 커 나가도록 지원을 아끼지 않겠다"고 30일 밝혔다.
-#     """
-#     body3 = """
-#     주변 도시를 잇는 교통망 확충 역시 신공항의 성패를 좌우할 핵심과제로 떠오르고 있다. 경북도에 따르면 2021년부터 전철 4곳, 고속도로 2곳 등 총 260㎞에 걸쳐 국비 6조원을 투입하는 신공항과 구미·포항·대구 등 인근 도시들을 연결하는 교통망 확충사업이 추진된다.
-# 김 의원은 "구미시가 신공항배후단지로서 산업·교통·물류의 중심지로 부상하면 구미산단이나 아파트 신도시 활성화뿐만 아니라 도시와 농촌이 조화하는 지역 균형발전이 이뤄질 것"이라고 내다봤다.
-#     """
+민주당 의원들은 집회 참석에 이어 사회관계망서비스(SNS)를 통해서도 정부·여당을 향한 규탄 메시지를 앞다퉈 쏟아냈다. 이연희 의원은 "총선에서 국민이 심판했는데 대통령이 듣지 않는다면 국민들이 나서야 한다"며 "윤석열 정권이 국정 기조를 전환하고 인적 쇄신을 이룰 때까지 국민들이 나서서 윤 대통령을 굴복시켜야 한다. 그 길에 민주당이 앞장설 것"이라고 했다. 윤건영 의원은 "정부와 여당은 한 몸으로 해병대원 특검법을 거부했다. 진실을 숨기고 자기 자신만 지키기 위한 합동 권한남용 작전"이라며 "끝까지 숨길 수 있는 진실은 없다"고 강조했다. 염태영 의원은 "국방의 의무를 다하다 순직한 한 젊은 군인과 그 가족들의 한을 풀 수 있도록 해달라"며 "손바닥으로 하늘을 가리려는 대통령과 여당을 국민의 매서운 회초리로 응징해달라"고 호소했다. 김동아 의원은 "(정부·여당이) 권력을 사적으로 악용하는 모습을 더 이상 우리는 용납하지 않을 것이다. 신속하고 강력하게 국민이 위임한 권한을 행사해나갈 것"이라고 했다.
+
+"""
+
     extractor = TopicExtractor()
-    topic = extractor.extract_topic(title = title, body = body1)
-    # topic = extractor.extract_topic(title, body2)
-    # topic = extractor.extract_topic(title, body3)
+    topic = extractor.extract_topic(title=title, body=body1)

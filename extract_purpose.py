@@ -298,15 +298,17 @@ class MediaMentionCleaner:
     def __init__(self):
         self.media_names = [
             "본지", "중앙일보", "조선일보", "동아일보", "세계일보",
-            "MBC", "KBS", "SBS", "JTBC", "채널A", "TV조선", "연합뉴스"
+            "MBC", "KBS", "SBS", "JTBC", "채널A", "TV조선", "연합뉴스", "CBS"
+        ]
+        self.programs = [
+            "김현정의 뉴스쇼", "배성규의 정치펀치", "조선일보 유튜브"
         ]
 
-        # 정규식 패턴들
         self.patterns = [
-            # 조선일보 유튜브 '배성규의 정치펀치'
-            r"(조선일보\s+유튜브\s+[‘\"']?\s*배성규의\s+정치펀치\s*[’\"']?)",
+            # 특정 방송 프로그램명 + 인터뷰/출연
+            rf"[‘\"']?\s*({'|'.join(self.programs)})\s*[’\"']?\s*(인터뷰|출연)?\s*(에서|에)?",
             # 언론사 + 연결어 + 맥락 표현
-            rf"({'|'.join(self.media_names)})\s*(유튜브)?\s*([와과]의|[와과]|의)?\s*[\w\s]*?(통화|인터뷰|방송|만남|출연|강조|만난)?\s*(에서|에|당시)?",
+            rf"({'|'.join(self.media_names)})\s*(유튜브)?\s*([와과]의|[와과]|의)?\s*[\w\s]*?(통화|인터뷰|라디오|방송|만남|출연|강조|만난)?\s*(에서|에|당시)?",
             # 단독 언론사 이름만 나올 경우
             rf"({'|'.join(self.media_names)})"
         ]
@@ -314,10 +316,46 @@ class MediaMentionCleaner:
     def clean(self, text: str) -> str:
         for pattern in self.patterns:
             text = re.sub(pattern, "", text)
-        # 후처리: 조사 혼자 남은 것 제거
+        # 조사 혼자 남은 것 제거
         text = re.sub(r"\s+(에서|에|와의|와|의)\s+", " ", text)
         text = re.sub(r"\s{2,}", " ", text)
         return text.strip()
+    
+
+def restore_speaker(text: str, name: str) -> str:
+    POSITION_SUFFIXES = ["의원은", "대표는", "장관은", "총장은", "위원장은"]
+    if not name:
+        return text
+
+    target_surname = name[0]
+
+    # 직책 표현 패턴
+    position_pattern = "|".join(map(re.escape, POSITION_SUFFIXES))
+    full_pattern = rf'([\w가-힣]+ ({position_pattern}))'
+
+    matches = list(re.finditer(full_pattern, text))
+    if len(matches) < 2:
+        return text
+
+    first, second = matches[0], matches[1]
+    between = text[first.end():second.start()]
+    is_contiguous = re.fullmatch(r'[\s\W]*', between)
+
+    if not is_contiguous:
+        return text  # 연속 아님
+
+    first_name = first.group(1).split()[0]
+    second_name = second.group(1).split()[0]
+    
+    if first_name[0] != target_surname:
+        start, end = first.start(), first.end()
+        return (text[:start] + text[end:]).strip()
+
+    if second_name[0] != target_surname:
+        start, end = second.start(), second.end()
+        return (text[:start] + text[end:]).strip()
+
+    return text
 
 
 def extract_purpose(name=None, title=None, body1=None, body2=None, prev=None):
@@ -326,10 +364,13 @@ def extract_purpose(name=None, title=None, body1=None, body2=None, prev=None):
     # 5. 큰따옴표 바로 뒤에 붙어있는 [며, 라며, 이라며, 고, 라고, 이라고] 등의 단어는 발언의 목적배경취지에 쓰지 않음
     cleaned_text = remove_quotes(body1)
     # print("1단계: " + cleaned_text)
+    
+    # 두 개의 주어가 연속해서 나오는 경우 처리
+    restored_speaker_text = restore_speaker(cleaned_text, name)
 
     # 2. 토씨 또는 어미의 조정
     # 11. [ …...  "……..." 는+명사 …......]  의 문장 구조 : 큰따옴표 문장이 바로 뒤에 나오는 명사를 수식하는 문구가 되어있는 형태
-    adjusted_text = adjust_particles_and_endings(cleaned_text)
+    adjusted_text = adjust_particles_and_endings(restored_speaker_text)
     # print("2단계: " + adjusted_text)
 
     # 3. 발언문장 서두에 나오는 [이에, 이에 대해, 이같이 말하며, 반면] 등의 문구는 발언의 목적배경취지에 쓰지 않음.
@@ -338,22 +379,25 @@ def extract_purpose(name=None, title=None, body1=None, body2=None, prev=None):
     excluded_text = exclude_conjunctions(adjusted_text)
     # print("3단계: " + excluded_text)
     
-    cleaner = MediaMentionCleaner()
-    cleaned = cleaner.clean(excluded_text)
+    # cleaner = MediaMentionCleaner()
+    # cleaned = cleaner.clean(excluded_text)
+    cleaned = excluded_text
 
     # 6. OOO 의원은 "….." 고 했다, 말했다  --> OOO 의원의 발언
     # 7. OOO 의원은 "….." 고 비판, 주장, 비난, 반박했다 등  --> OOO 의원의 비판, 주장, 비난, 반박 등
     simplified_text = simplify_purpose(cleaned, name)
-    print("목적배경취지: " + simplified_text)
+    # print("목적배경취지: " + simplified_text)
 
     return simplified_text
 
 
 if __name__ == "__main__":
-    name = "최강욱"
+    name = "김현정"
     # text = '이에 대해 박기찬 의원은 "밥이 맛없다"라는 발언에 대해선 "밥 좀 맛있게 해라"고 지적했고, 김동욱 전 회장은 "그게 무슨소리냐"고 반문했다.'
     # text = "박기찬 의원은 말했다"
-    text = """그는 "김은경 혁신위원회에서 제안했던, 체포동의안에 대한 민주당 스탠스, 그리고 그것에 대한 지도부 답변은 있었던 상황"이라며 "그러면 그 말을 번복하자는 말인지를 오히려 확인해 보고 싶다"고 했다"""
+    text = """
+    고민정 최고위원은 이날 오전 CBS 라디오 ‘김현정의 뉴스쇼’ 인터뷰에서 "불체포 특권을 포기하자는 혁신위 제안과 이재명 대표의 발언을 번복하자는 의미냐고 묻고 싶다"며 "한 번 내뱉은 말에 대해서는 당연히 약속을 지키는 게 정치 아닌가"라고 말했다.
+    """
     # print(text.startswith("이에 대해"))
-    # print(extract_purpose(name=name, body1=text))
+    print(extract_purpose(name=name, body1=text))
   

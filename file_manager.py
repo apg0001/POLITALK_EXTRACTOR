@@ -7,7 +7,8 @@ from text_manager import *
 from extract_purpose import extract_purpose
 # from extract_topic import extract_topic
 from extract_topic_summary import extract_topic
-from modify_title import Modifier
+# from modify_title import Modifier
+from extract_topic_summary import TopicExtractor
 
 
 def format_remaining_time(remaining_seconds):
@@ -414,7 +415,8 @@ def save_data_to_excel(data, excel_file, progress_bar, progress_label):
                 entry["발언자 성명 및 직책"], entry["기사 제목"], entry["문장"], entry["문단"], prev_purpose)
             # entry["주제"] = extract_topic(
             #     entry["기사 제목"], entry["큰따옴표 발언"], entry["발언자 성명 및 직책"])
-            entry["주제"] = "test"
+            extractor = TopicExtractor()
+            entry["주제"] = extractor.extract_topic(entry["기사 제목"], entry["문단"], entry["발언의 목적 배경 취지"], entry["큰따옴표 발언"], entry["발언자 성명 및 직책"])
             row = [entry.get(header, "") for header in headers]
             sheet.append(row)
 
@@ -488,7 +490,8 @@ def save_data_to_csv(data, csv_file, progress_bar=None, progress_label=None):
                 entry["발언자 성명 및 직책"], entry["기사 제목"], entry["문장"], entry["문단"], prev_purpose)
             # 주제 추출 부분은 필요에 따라 활성화하세요
             # entry["주제"] = extract_topic(entry["기사 제목"], entry["큰따옴표 발언"], entry["발언자 성명 및 직책"])
-            entry["주제"] = Modifier.modify_title(entry["기사 제목"])
+            extractor = TopicExtractor()
+            entry["주제"] = extractor.extract_topic(entry["기사 제목"], entry["문단"], entry["발언의 목적 배경 취지"], entry["큰따옴표 발언"], entry["발언자 성명 및 직책"])
 
             # 진행 상태 표시
             if progress_bar is not None and progress_label is not None:

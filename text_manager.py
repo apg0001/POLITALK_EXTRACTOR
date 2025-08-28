@@ -1002,7 +1002,7 @@ def calculate_similarity(sentence1, sentence2):
     # print("sentence1: ", sentence1)
     # print("sentence2: ", sentence2)
     # print(f"중복 단어 수 : {len(common_words)}개, 전체 단어 수 : {total_words}개, 유사도 : {similarity*100}%")
-    return similarity >= 0.8  # 유사도가 80% 이상이면 True
+    return similarity >= 0.7  # 유사도가 80% 이상이면 True
 
 
 def normalize_text(text):

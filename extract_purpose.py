@@ -292,7 +292,8 @@ def simplify_purpose(sentence, name):
     문장에서 대체 가능한 표현을 간소화.
     """
     
-    for key, value in replacement_dict.items():
+    # for key, value in replacement_dict.items():
+    for key, value in sorted(replacement_dict.items(), key=lambda x: len(x[0]), reverse=True):
         if key in sentence:
             sentence = sentence.replace(key, value)
             # print(f"{key} -> {value} : {sentence}")

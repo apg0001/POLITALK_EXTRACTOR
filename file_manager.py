@@ -6,7 +6,7 @@ import traceback
 from text_manager import *
 from extract_purpose import extract_purpose
 # from extract_topic import extract_topic
-from extract_topic_summary import extract_topic
+# from extract_topic_summary import extract_topic
 # from modify_title import Modifier
 from extract_topic_summary import TopicExtractor
 

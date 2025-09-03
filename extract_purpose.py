@@ -23,14 +23,14 @@ unimportant_conjunctions = [
     "이같이 말하며",
     "반면",
     "이를 두고",
-    
+
 
     # 4
     "이어",
     "그러므로",
     "또",
-    
-    
+
+
     # 발언 정리 진행방향 제안
     "그러나",
     "그러자",
@@ -38,7 +38,7 @@ unimportant_conjunctions = [
     "이어서",
     "다만",
     "아울러"
-    ]
+]
 
 # 6. OOO 의원은 "….." 고 했다, 말했다  --> OOO 의원의 발언
 # 7. OOO 의원은 "….." 고 비판, 주장, 비난, 반박했다 등  --> OOO 의원의 비판, 주장, 비난, 반박 등
@@ -191,13 +191,13 @@ replacement_dict = {
     # 샘플개선 4 검토의견 5. 발언의 목적 배경 취지
     "하기도 했다": "했다",
     " 한 것": " 발언한 것",
-    
+
     # 샘플개선 4 3. 발언의 목적배경 취지
     "페이스북에 시작하는 게시": "페이스북에 게시",
     "대표는 하는 곳으로 검찰을 묘사했다": "대표는 검찰을 묘사했다",
     "대해선": "대해"
     # "했다": "함",
-    
+
 }
 
 # 1. 기본적으로 큰따옴표의 전 후에 있는 문구를 그대로 옮겨 쓰되 아래의 조정이 필요
@@ -207,12 +207,12 @@ replacement_dict = {
 
 
 def remove_quotes(text):
-    
+
     text = text.replace("“", "\"")
     text = text.replace("”", "\"")
-    text = text.replace("‘", "\'")
-    text = text.replace("’", "\'")
-    text = text.replace("\" \"", "\", \"") # 쌍따옴표 문장 두 개가 연속한 경우 처리
+    text = text.replace("‘", "'")
+    text = text.replace("’", "'")
+    text = text.replace("\" \"", "\", \"")  # 쌍따옴표 문장 두 개가 연속한 경우 처리
 
     # 쌍따옴표 안 내용 + 바로 뒤에 붙은 한 단어(띄어쓰기 포함해서 최대 2글자 정도)까지 제거
     pattern = r'"[^"]*"(?:\s*\S+)?'
@@ -291,7 +291,7 @@ def simplify_purpose(sentence, name):
     """
     문장에서 대체 가능한 표현을 간소화.
     """
-    
+
     # for key, value in replacement_dict.items():
     for key, value in sorted(replacement_dict.items(), key=lambda x: len(x[0]), reverse=True):
         if key in sentence:
@@ -301,8 +301,9 @@ def simplify_purpose(sentence, name):
         sentence = f"{name}의 발언"
     elif sentence in ["물었다"]:
         sentence = f"{name}의 질문"
-        
+
     return sentence
+
 
 class MediaMentionCleaner:
     def __init__(self):
@@ -330,7 +331,7 @@ class MediaMentionCleaner:
         text = re.sub(r"\s+(에서|에|와의|와|의)\s+", " ", text)
         text = re.sub(r"\s{2,}", " ", text)
         return text.strip()
-    
+
 
 def restore_speaker(text: str, name: str) -> str:
     POSITION_SUFFIXES = ["의원은", "대표는", "장관은", "총장은", "위원장은"]
@@ -356,7 +357,7 @@ def restore_speaker(text: str, name: str) -> str:
 
     first_name = first.group(1).split()[0]
     second_name = second.group(1).split()[0]
-    
+
     if first_name[0] != target_surname:
         start, end = first.start(), first.end()
         return (text[:start] + text[end:]).strip()
@@ -374,7 +375,7 @@ def extract_purpose(name=None, title=None, body1=None, body2=None, prev=None):
     # 5. 큰따옴표 바로 뒤에 붙어있는 [며, 라며, 이라며, 고, 라고, 이라고] 등의 단어는 발언의 목적배경취지에 쓰지 않음
     cleaned_text = remove_quotes(body1)
     # print("1단계: " + cleaned_text)
-    
+
     # 두 개의 주어가 연속해서 나오는 경우 처리
     restored_speaker_text = restore_speaker(cleaned_text, name)
 
@@ -388,7 +389,7 @@ def extract_purpose(name=None, title=None, body1=None, body2=None, prev=None):
     # 9. 문장 서두의 [이에, 이에 대해] 는 1안) 쓰지 않거나,  2안) 앞 문장에서 '이에 대해' 에 해당되는 내용을 찾아서 씀
     excluded_text = exclude_conjunctions(adjusted_text)
     # print("3단계: " + excluded_text)
-    
+
     # cleaner = MediaMentionCleaner()
     # cleaned = cleaner.clean(excluded_text)
     cleaned = excluded_text
@@ -410,4 +411,3 @@ if __name__ == "__main__":
     """
     # print(text.startswith("이에 대해"))
     print(extract_purpose(name=name, body1=text))
-  

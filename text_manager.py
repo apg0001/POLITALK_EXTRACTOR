@@ -10,123 +10,11 @@ import stanza
 stanza.download("ko")
 nlp = stanza.Pipeline("ko", processors='tokenize,pos,lemma,depparse')
 
-# # BERT 모델과 토크나이저 초기화
-# tokenizer = BertTokenizer.from_pretrained("monologg/kobert")
-# model = BertModel.from_pretrained("monologg/kobert")
-
-# # CUDA 사용 가능 여부 확인
-# device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-# print(f"Using device for similarity check: {device}")
-
-# # 모델을 GPU로 이동
-# model = model.to(device)
-
-# # 최대 크기 설정
-# MAX_VECTORS = 100
-
-# # 문장 벡터를 저장할 큐 (임베딩 저장)
-# sentence_vectors = deque(maxlen=MAX_VECTORS)
-
-
-# def encode_sentence(sentence):
-#     """
-#     문장을 BERT를 사용하여 임베딩으로 변환.
-#     Args:
-#         sentence (str): 입력 문장
-#     Returns:
-#         torch.Tensor: 문장의 풀링된 임베딩
-#     """
-#     # 입력 데이터를 GPU로 이동
-#     inputs = tokenizer(sentence, return_tensors="pt",
-#                        truncation=True, padding=True).to(device)
-
-#     # 모델 추론
-#     with torch.no_grad():
-#         outputs = model(**inputs)
-
-#     # pooler_output을 반환 (GPU 상에서 반환)
-#     return outputs.pooler_output
-
-
-# # 중복 탐지용 세트
-# sentence_set = set()
-
-
-# # def is_similar(input_sentence):
-# #     """중복 여부를 확인하는 개선된 함수로, 처음 발생 시 False 반환 후, 이후 중복 시 True 반환."""
-# #     if input_sentence in sentence_set:
-# #         return True  # 중복된 경우
-# #     sentence_set.add(input_sentence)
-# #     return False  # 처음 발생한 경우
-
-
-# def is_similar(input_sentence, threshold=0.997):
-#     """
-#     문장 유사도를 기반으로 중복 여부를 판단.
-#     Args:
-#         input_sentence (str): 입력 문장
-#         threshold (float): 중복 판단 유사도 임계값 (기본값: 0.7)
-#     Returns:
-#         bool: 중복이면 True, 아니면 False
-#     """
-#     global sentence_vectors
-
-#     # 입력 문장을 임베딩으로 변환
-#     input_vector = encode_sentence(input_sentence)  # 이미 GPU로 이동된 상태
-
-#     # 중복 탐지
-#     if len(sentence_vectors) > 0:
-#         # 모든 저장된 벡터와의 코사인 유사도 계산
-#         similarities = [
-#             torch.nn.functional.cosine_similarity(
-#                 input_vector, vec, dim=1).item()
-#             for vec in sentence_vectors
-#         ]
-#         # 최대 유사도가 threshold 이상인 경우 중복으로 판단
-#         if max(similarities) >= threshold:
-#             return True
-
-#     # 중복이 아니면 벡터 추가
-#     sentence_vectors.append(input_vector)
-#     return False
-
-
-# def extract_quotes(text, name):
-#     """문단에서 큰따옴표로 묶인 발언을 추출."""
-#     text = text.replace("“", "\"")
-#     text = text.replace("”", "\"")
-#     quotes = []
-#     start = 0
-#     while start < len(text):
-#         start = text.find('"', start)
-#         if start == -1:
-#             break
-#         end = text.find('"', start + 1)
-#         if end == -1:
-#             break
-#         extracted_sentence = f'"{text[start + 1:end]}"'
-
-#         # # 이름(full name) 또는 성(last name)이 포함된 경우만
-#         # keywords = [name, name[0]]
-
-#         # # 발언자 이름이 들어가지 않거나 접속사로 시작하지 않는 경우는 패스
-#         # text = filter_sentences_by_name([text], keywords)
-
-#         # v2.1부터 중복 제거는 가장 마지막에 따로 시행
-#         # if not is_similar(extracted_sentence):
-#         #     # quotes.append('"중복 제거됨"')
-#         #     # quotes.append('')
-#         #     # continue
-#         #     quotes.append(extracted_sentence)
-
-#         quotes.append(extracted_sentence)
-
-#         start = end + 1
-#     return "  ".join(quotes)
 
 def extract_quotes(text, name):
     """문단에서 큰따옴표로 묶인 발언을 추출하고, 특정 인물의 이름이 포함된 것만 반환."""
-    text = text.replace("“", "\"").replace("”", "\"")  # 다양한 따옴표 처리
+    text = text.replace("“", "\"").replace(
+        "”", "\"").replace("\'", "'")  # 다양한 따옴표 처리
     quotes = []
     start = 0
 
@@ -140,6 +28,7 @@ def extract_quotes(text, name):
 
         extracted_sentence = f'"{text[start + 1:end]}"'  # 불필요한 공백 제거
         quotes.append(extracted_sentence)
+        # print(quotes)
 
         start = end + 1
 
@@ -463,191 +352,6 @@ def normalize_spaces_inside_single_quotes(text):
     return re.sub(r"'(.*?)'", lambda m: "'{}'".format(re.sub(r"\s+", " ", m.group(1).strip())), text)
 
 
-# class Merger:
-#     # todo : 쉼표가 있을 때 누구의 발언인지 확인하고 배제 가능?
-#     """
-#     행 합치기 로직에 사용되는 함수들
-#     """
-#     @staticmethod
-#     def split_text_by_quotes(text):
-#         """
-#         가장 첫 번째 큰따옴표 앞까지를 part_a,
-#         가장 마지막 큰따옴표 뒤부터를 part_c로 반환
-#         """
-#         matches = list(re.finditer(r'"', text))
-
-#         if len(matches) >= 2:
-#             first_quote_index = matches[0].start()
-#             last_quote_index = matches[-1].end()
-#             part_a = text[:first_quote_index].strip()
-#             part_c = text[last_quote_index:].strip()
-#             if len(part_c.split(" ")) > 1:
-#                 part_c = " ".join(part_c.split(" ")[1:])
-#         else:
-#             part_a = text.strip()
-#             part_c = ""
-
-#         return part_a, part_c
-
-#     @staticmethod
-#     def extract_sentences(paragraph):
-#         """문단을 문장 단위로 분리하는 함수"""
-#         doc = nlp(paragraph)
-#         return [sentence.text for sentence in doc.sentences]
-
-#     @classmethod
-#     def case_base(cls, paragraph, target_sentence):
-#         """
-#         주어진 문단에서 특정 문장의 바로 앞 문장에 큰따옴표가 포함되어 있는지 확인
-#         todo : 앞문장의 발언이 동일 인물의 발언인가?
-#         """
-#         sentences = cls.extract_sentences(paragraph)
-#         target_sentence = cls.extract_sentences(target_sentence)[0]
-
-#         # print("\n".join(sentences))
-#         # print(target_sentence)
-
-#         # if not target_sentence.endswith("."):
-#         #     # 마지막에 마침표가 없는 경우 추가
-#         #     target_sentence += "."
-
-#         if target_sentence not in sentences:
-#             if not target_sentence.endswith("."):
-#                 # 마지막에 마침표가 없는 경우 추가
-#                 target_sentence += "."
-
-#         if target_sentence not in sentences:
-#             print("⚠ 입력된 문장이 문단 내에서 발견되지 않음.")
-#             return False
-
-#         idx = sentences.index(target_sentence)
-#         if idx == 0:
-#             print("⚠ 입력된 문장이 문단의 첫 번째 문장이므로 앞 문장이 없음.")
-#             return False
-#         # print(idx)
-#         prev_sentence = sentences[idx - 1]
-
-#         if '"' in prev_sentence:
-#             print("행합치기 대상.")
-#             return True
-#         else:
-#             print("앞문장이 큰따옴표 문장이 아니므로 행 합치기 대상이 아님.")
-#             return False
-
-#     @classmethod
-#     def is_exceptional_conjunction(cls, part_a):  # 완료
-#         """
-#         예외 접속사가 있는 확인
-#         """
-#         if not part_a:
-#             return True
-
-#         condition_1 = part_a not in exceptional_conjunctions
-#         condition_2 = not any(
-#             conj in part_a for conj in exceptional_conjunctions)
-#         print()
-#         return condition_1 and condition_2
-
-#     @classmethod
-#     def is_case_1(cls, part_a, part_c):  # 완료
-#         """
-#         Case 1:
-#         A 파트에 접속사만 존재
-#         C 파트는 단일 동사로만 이루어짐
-#         """
-#         if not part_a or not part_c:
-#             return False
-
-#         condition_1 = part_a in sequential_conjunctions
-#         condition_2 = len(part_c.split(" ")) == 1
-#         return condition_1 and condition_2
-
-#     @classmethod
-#     def is_case_2(cls, part_a, part_c):  # 완료
-#         """
-#         Case 2:
-#         A 파트에 접속사 + 'OOO 은, 는, 그는'으로 이루어짐
-#         C 파트는 단일 동사로 이루어짐
-#         """
-#         if not part_a or not part_c:
-#             return False
-
-#         condition_1 = (part_a.split(" ")[0] in sequential_conjunctions and (
-#             part_a.endswith("은") or part_a.endswith("는")))
-#         condition_2 = (("은" in part_a or "는" in part_a) and any(
-#             conj in part_a for conj in sequential_conjunctions) and len(part_a.split(" ")) <= 5)
-#         condition_3 = len(part_c.split(" ")) == 1
-#         # print(("은" in part_a or "는" in part_a), any(conj in part_a for conj in sequential_conjunctions))
-#         # print("이와 함께" in part_a)
-#         # print(condition_1, condition_2, condition_3)
-#         # print(any(conj in part_a for conj in sequential_conjunctions))
-#         return (condition_1 or condition_2) and condition_3
-
-#     @classmethod
-#     def is_case_3(cls, part_a, part_c):  # 완료
-#         """
-#         Case 3:
-#         A 파트에 '그는'만 존재
-#         C 파트는 단일 동사로만 이루어짐
-#         """
-#         if not part_a or not part_c:
-#             return False
-
-#         condition_1 = part_a == "그는" or part_a == "그녀는"
-#         condition_2 = len(part_c.split(" ")) == 1
-#         return condition_1 and condition_2
-
-#     @classmethod
-#     def is_case_4(cls, part_a, part_c):
-#         """
-#         Case 4:
-#         A 파트에 'OOO 은' 형태(세 글자 이상)만 포함
-#         C 파트는 단일 동사로만 이루어짐
-#         """
-#         if not part_a or not part_c:
-#             return False
-#         condition_1 = len(part_a.split(" ")) <= 4 and (
-#             part_a.endswith("은") or part_a.endswith("는"))
-#         condition_2 = len(part_c.split(" ")) == 1
-
-#         # todo
-#         # 3번째 조건 자세히 추가해야 함
-#         return condition_1 and condition_2
-
-#     @classmethod
-#     def is_case_5(cls, part_a, part_c):  # 완료
-#         """
-#         Case 5:
-#         A 파트가 공란이고
-#         C 파트는 단일 동사로만 이루어짐
-#         """
-#         if not part_c:
-#             return False
-
-#         condition_1 = not part_a
-#         condition_2 = len(part_c.split(" ")) == 1
-#         return condition_1 and condition_2
-
-#     @classmethod
-#     def check_cases(cls, text, paragraph):
-#         """입력된 텍스트가 5가지 케이스 중 하나라도 만족하는지 확인"""
-#         part_a, part_c = cls.split_text_by_quotes(text)
-
-#         case_1 = cls.is_case_1(part_a, part_c)
-#         case_2 = cls.is_case_2(part_a, part_c)
-#         case_3 = cls.is_case_3(part_a, part_c)
-#         case_4 = cls.is_case_4(part_a, part_c)
-#         case_5 = cls.is_case_5(part_a, part_c)
-#         case_base = cls.case_base(paragraph, text)
-#         case_exceptional_conjunction = cls.is_exceptional_conjunction(part_a)
-
-#         print(case_1, case_2, case_3, case_4, case_5,
-#               case_base, case_exceptional_conjunction)
-#         print((case_1 or case_2 or case_3 or case_4 or case_5)
-#               and case_base and case_exceptional_conjunction, text, "\n")
-
-#         return (case_1 or case_2 or case_3 or case_4 or case_5) and case_base and case_exceptional_conjunction
-
 exceptional_conjunctions = [
     "이에 대해",
 ]
@@ -700,36 +404,44 @@ class Merger:
         주어진 문단에서 특정 문장의 바로 앞 문장에 큰따옴표가 포함되어 있는지 확인
         todo : 앞문장의 발언이 동일 인물의 발언인가?
         """
+        prev = [p.replace("\'", "'") for p in prev]
+        # print("paragraph: ", paragraph)
         sentences = cls.extract_sentences(paragraph)
+        # print("extracted: ", sentences)
         target_sentence = cls.extract_sentences(target_sentence)[0]
         idx = -1
 
         for i, sentence in enumerate(sentences):
-            # print(i, " : ", sentence)
+            print(i, " : ", sentence)
             if target_sentence in sentence:
                 idx = i
-                # print(idx, " : 해당 문장!!!!!!")
+                print(idx, " : 해당 문장!!!!!!")
 
         if idx == -1:
-            # print("⚠ 입력된 문장이 문단 내에서 발견되지 않음.")
+            print("⚠ 입력된 문장이 문단 내에서 발견되지 않음.")
             return False
 
         if idx == 0:
-            # print("⚠ 입력된 문장이 문단의 첫 번째 문장이므로 앞 문장이 없음.")
+            print("⚠ 입력된 문장이 문단의 첫 번째 문장이므로 앞 문장이 없음.")
             return False
         # print(idx)
-        prev_sentence = sentences[idx - 1]
+        prev_sentence = sentences[idx - 1].replace("\'", "'")
         cur_sentence = sentences[idx]
 
-        # print("이전 입력: ", prev)
-        # print("이전 문장: ", prev_sentence)
+        print("이전 입력: ", prev)
+        print("이전 문장: ", prev_sentence)
         
-        # if '"' in prev_sentence:
-        if any(sent in prev_sentence for sent in prev) or any(sent in cur_sentence for sent in prev):
-            # print("case_base: 행합치기 대상.")
+        if prev_sentence.count('"'):
+            try:
+                prev_sentence = sentences[idx - 2].replace("\'", "'") + prev_sentence
+            except:
+                prev_sentence = prev_sentence
+
+        if any((sent in prev_sentence) or (prev_sentence in sent) for sent in prev) or any((sent in cur_sentence) or (cur_sentence in sent) for sent in prev):
+            print("case_base: 행합치기 대상.")
             return True
         else:
-            # print("case_base: 앞문장이 큰따옴표 문장이 아니므로 행 합치기 대상이 아님.")
+            print("case_base: 앞문장이 큰따옴표 문장이 아니므로 행 합치기 대상이 아님.")
             return False
 
     @classmethod
@@ -744,7 +456,7 @@ class Merger:
         condition_2 = not any(
             conj in part_a for conj in exceptional_conjunctions)
         return condition_1 and condition_2
-    
+
     @classmethod
     def case_same_sentence(cls, paragraph, target_sentence, prev):
         """
@@ -766,7 +478,7 @@ class Merger:
             return False
 
         cur_sentence = sentences[idx]
-        
+
         # if '"' in prev_sentence:
         if any(sent in cur_sentence for sent in prev):
             # print("같은 문장에 포함된 발언이므로 행합치기 대상.")
@@ -856,6 +568,7 @@ class Merger:
 
     @classmethod
     def check_cases(cls, text, paragraph, prev):
+        # print(text, "\n", prev)
         """입력된 텍스트가 5가지 케이스 중 하나라도 만족하는지 확인"""
         part_a, part_c = cls.split_text_by_quotes(text)
 
@@ -868,10 +581,10 @@ class Merger:
         case_exceptional_conjunction = cls.is_exceptional_conjunction(part_a)
         case_same_sentence = cls.case_same_sentence(paragraph, text, prev)
 
-        # print(case_1, case_2, case_3, case_4, case_5,
-        #       case_base, case_exceptional_conjunction)
-        # print((case_1 or case_2 or case_3 or case_4 or case_5)
-        #       and case_base and case_exceptional_conjunction, text, "\n================================================================")
+        print(case_1, case_2, case_3, case_4, case_5,
+              case_base, case_exceptional_conjunction)
+        print((case_1 or case_2 or case_3 or case_4 or case_5)
+              and case_base and case_exceptional_conjunction, text, "\n================================================================")
 
         return ((case_1 or case_2 or case_3 or case_4 or case_5) and case_base and case_exceptional_conjunction) or case_same_sentence
 
@@ -889,9 +602,10 @@ def extract_and_clean_quotes(text):
 
     text = text.replace("“", "\"")
     text = text.replace("”", "\"")
-    text = text.replace("‘", "\'")
-    text = text.replace("'", "\'")
-    text = text.replace("’", " \'")
+    text = text.replace("‘", "'")
+    text = text.replace("'", "'")
+    text = text.replace("’", "'")
+    text = text.replace("\'", "'")
     quotes = re.findall(r'"(.*?)"', text)
     cleaned_text = re.sub(r'"(.*?)"', '""', text).strip()
     return quotes, cleaned_text
@@ -1040,25 +754,27 @@ if __name__ == "__main__":
     # part_a, part_c = Merger.split_text_by_quotes(text)
 
     # ✅ 테스트 실행
-    #     paragraph = '''
-    # 의정 활동에 제한이 있다. 고위공직자는 직무와 관련된 주식을 3000만원 이상 보유할 수 없다. 국회의원이 특정 기업의 주식을 가졌다면 관련 분야의 국회 상임위에는 못 들어간다.
-    # 김 의원은 임기 초 1년 남짓 산업통상자원중소벤처기업위원회에서 활동했으나 2018년 행정안전위원회로 옮겼다. 산자위 업무가 웹젠 주식과 직무 관련성이 있다는 판정을 받았기 때문이다. 이후 법제사법위원회로 잠시 옮겼으나 다시 행안위로 돌아왔다. 김 의원은 "전문 분야를 맡지 못한 아쉬움이 있다"며 "주식백지신탁제도가 바뀌어야 한다"고 했다. "정당들이 인재 영입을 원하지만, 일정 규모 이상 창업 성과를 낸 사람은 (주식 때문에) 정치하기 어려운 구조"라고 덧붙였다.
+    paragraph = '''
+민주당은 한국당 의원들을 검찰에 고발하면서도 검찰을 비판했다. 검찰은 전날 작년 4월 패스트트랙(신속 처리 안건) 지정 과정에서 있었던 충돌 사건과 관련해 한국당 의원 23명과 함께 민주당 이종걸·박범계 의원 등 5명을 기소했다.
+이에 대해 이해찬 대표는 "폭력을 행사해 국회법을 위반한 한국당 의원들을 해를 넘겨 무려 8개월 만에 기소했다"며 "증거가 차고 넘치는데도 제대로 소환 조사도 하지 않다가 비로소 늑장 기소를 했다. 게다가 검찰이 자의적으로 기소권을 남용하는 행위라 개탄하지 않을 수 없다"고 했다. 이 대표는 "이래서 검찰 개혁이 필요한 거다"라고 했다.    
 
-    # '''
-
-    #     sentence = """
-    # "정당들이 인재 영입을 원하지만, 일정 규모 이상 창업 성과를 낸 사람은 (주식 때문에) 정치하기 어려운 구조"라고 덧붙였다
-
-    # """
-
-    #     print(Merger.check_cases(sentence, paragraph))
+    '''
 
     sentence = """
-이 후보자는 "좋은 아이디어"라고 답했다
-    
+    이 대표는 "이래서 검찰 개혁이 필요한 거다"라고 했다.
+
     """
 
-    _, clean_sentence = extract_and_clean_quotes(sentence)
-    speakers = merge_tokens(extract_speaker(clean_sentence))
+    prev = ["""\"증거가 차고 넘치는데도 제대로 소환 조사도 하지 않다가 비로소 늑장 기소를 했다. 게다가 검찰이 자의적으로 기소권을 남용하는 행위라 개탄하지 않을 수 없다\""""]
+
+    print(Merger.check_cases(sentence, paragraph, prev))
+
+#     sentence = """
+# 이 후보자는 "좋은 아이디어"라고 답했다
+
+#     """
+
+#     _, clean_sentence = extract_and_clean_quotes(sentence)
+#     speakers = merge_tokens(extract_speaker(clean_sentence))
 
     # print(speakers)

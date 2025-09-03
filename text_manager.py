@@ -404,7 +404,6 @@ class Merger:
         주어진 문단에서 특정 문장의 바로 앞 문장에 큰따옴표가 포함되어 있는지 확인
         todo : 앞문장의 발언이 동일 인물의 발언인가?
         """
-        prev = [p.replace("\'", "'") for p in prev]
         # print("paragraph: ", paragraph)
         sentences = cls.extract_sentences(paragraph)
         # print("extracted: ", sentences)
@@ -425,17 +424,20 @@ class Merger:
             print("⚠ 입력된 문장이 문단의 첫 번째 문장이므로 앞 문장이 없음.")
             return False
         # print(idx)
-        prev_sentence = sentences[idx - 1].replace("\'", "'")
+        prev_sentence = sentences[idx - 1]
         cur_sentence = sentences[idx]
 
-        print("이전 입력: ", prev)
-        print("이전 문장: ", prev_sentence)
         
-        if prev_sentence.count('"'):
+        if prev_sentence.count('"') == 1:
+            print(prev_sentence.count('"'))
             try:
-                prev_sentence = sentences[idx - 2].replace("\'", "'") + prev_sentence
+                prev_sentence = sentences[idx - 2] + " " + prev_sentence
             except:
                 prev_sentence = prev_sentence
+                
+        
+        print("이전 입력: ", prev)
+        print("이전 문장: ", prev_sentence)
 
         if any((sent in prev_sentence) or (prev_sentence in sent) for sent in prev) or any((sent in cur_sentence) or (cur_sentence in sent) for sent in prev):
             print("case_base: 행합치기 대상.")

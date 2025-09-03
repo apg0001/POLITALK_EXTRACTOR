@@ -221,6 +221,8 @@ def remove_duplicates(data, progress_bar, progress_label):
 
                 idx_new = 0
                 while idx_new < len(normalized_sentences):
+                    # print(
+                        #     f"\n비교문장\n입력[{i}행][{idx_new}]: {normalized_sentences[idx_new]}\n기존[{j}행][{idx_exist}]: {existing_sentences[idx_exist]}")   
                     matched = False
                     idx_exist = 0
                     while idx_exist < len(existing_normalized):
@@ -239,7 +241,7 @@ def remove_duplicates(data, progress_bar, progress_label):
                                 continue  # 기존 문장 삭제 → idx_exist는 유지
                             else:
                                 # ✅ 기존 entry에 남은 문장 없으면 entry 자체 삭제
-                                # print(f"[{i}] 기존 entry {j} 삭제 (모든 문장 제거됨)")
+                                print(f"[{i}] 기존 entry {j} 삭제 (모든 문장 제거됨)")
                                 del duplicate_removed_data[j]
                                 del sentence_sets[j]
                                 j -= 1  # entry 삭제했으니 인덱스 보정
@@ -249,26 +251,24 @@ def remove_duplicates(data, progress_bar, progress_label):
                             del normalized_sentences[idx_new]
                             matched = True
                             break  # 삭제 후 현재 idx_new로 계속
-                        # print(
-                        #     f"\n비교문장\n입력[{i}행][{idx_new}]: {normalized_sentences[idx_new]}\n기존[{j}행][{idx_exist}]: {existing_sentences[idx_exist]}")
                         elif normalized_sentences[idx_new] == existing_normalized[idx_exist] or calculate_similarity(normalized_sentences[idx_new], existing_normalized[idx_exist]):
                             # 큰따옴표 문장의 갯수가 적은 쪽에서 삭제
                             if len(normalized_sentences) < len(existing_normalized):
-                                # print(
-                                #     f"[{i}] '{original_sentences[idx_new]}' 제거 (new)")
-                                # print(
-                                #     f"비교대상: {existing_sentences[idx_exist]}"
-                                # )
+                                print(
+                                    f"[{i}] '{original_sentences[idx_new]}' 제거 (new)")
+                                print(
+                                    f"비교대상: {existing_sentences[idx_exist]}"
+                                )
                                 del original_sentences[idx_new]
                                 del normalized_sentences[idx_new]
                                 matched = True
                                 break  # 삭제 후 현재 idx_new로 계속
                             else:
-                                # print(
-                                #     f"[{i}] '{existing_sentences[idx_exist]}' 제거 (existing)")
-                                # print(
-                                #     f"비교대상: {original_sentences[idx_new]}"
-                                # )
+                                print(
+                                    f"[{i}] '{existing_sentences[idx_exist]}' 제거 (existing)")
+                                print(
+                                    f"비교대상: {original_sentences[idx_new]}"
+                                )
                                 del existing_sentences[idx_exist]
                                 del existing_normalized[idx_exist]
                                 # ✅ 기존 entry도 업데이트
@@ -282,13 +282,13 @@ def remove_duplicates(data, progress_bar, progress_label):
                                     continue  # 기존 문장 삭제 → idx_exist는 유지
                                 else:
                                     # ✅ 기존 entry에 남은 문장 없으면 entry 자체 삭제
-                                    # print(f"[{i}] 기존 entry {j} 삭제 (모든 문장 제거됨)")
+                                    print(f"[{i}] 기존 entry {j} 삭제 (모든 문장 제거됨)")
                                     del duplicate_removed_data[j]
                                     del sentence_sets[j]
                                     j -= 1  # entry 삭제했으니 인덱스 보정
                                     break  # 현재 비교 종료
-                        # else:
-                        #     print(f"[{i}] '{existing_sentences[idx_exist]}' 유지")
+                        else:
+                            print(f"[{i}] '{existing_sentences[idx_exist]}' 유지")
                         idx_exist += 1
                     if not matched:
                         idx_new += 1

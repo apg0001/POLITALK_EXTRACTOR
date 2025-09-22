@@ -203,7 +203,7 @@ def remove_duplicates(data):
                 existing_entry = duplicate_removed_data[j]
                 existing_sentences = existing_entry['큰따옴표 발언'].split("  ")
                 existing_normalized = sentence_sets[j]['normalized']
-
+                
                 idx_new = 0
                 while idx_new < len(normalized_sentences):
                     matched = False

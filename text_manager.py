@@ -428,12 +428,21 @@ class Merger:
         cur_sentence = sentences[idx]
 
         
-        if prev_sentence.count('"') == 1:
-            print(prev_sentence.count('"'))
+        # if prev_sentence.count('"') == 1:
+        #     print(prev_sentence.count('"'))
+        #     try:
+        #         prev_sentence = sentences[idx - 2] + " " + prev_sentence
+        #     except:
+        #         prev_sentence = prev_sentence
+        
+        # 따옴표 짝 맞을 때까지 반복
+        while prev_sentence.count('"') % 2 != 0:
             try:
                 prev_sentence = sentences[idx - 2] + " " + prev_sentence
-            except:
-                prev_sentence = prev_sentence
+                idx -= 1  # 인덱스 앞으로 이동
+            except IndexError:
+                # 더 이상 붙일 문장이 없으면 종료
+                break
                 
         
         print("이전 입력: ", prev)

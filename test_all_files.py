@@ -460,9 +460,11 @@ def process_multiple_files(directory_path, output_dir):
 # 테스트용 코드
 if __name__ == "__main__":
     formatted_date = datetime.datetime.now().strftime('%y%m%d')
-    directory_path = "/Users/gichanpark/Downloads/Input Sample Files"  # CSV 파일들이 위치한 디렉토리
+    # directory_path = "/Users/gichanpark/Downloads/Input Sample Files"  # CSV 파일들이 위치한 디렉토리
+    directory_path = "C:/Users/apg00/Downloads/Input Sample Files"
     # 출력 엑셀 파일이 저장될 디렉토리
     output_dir = f"/Users/gichanpark/Downloads/output_{formatted_date}"
+    output_dir = f"C:/Users/apg00/Downloads/output_{formatted_date}"
 
     process_multiple_files(directory_path, output_dir)
 

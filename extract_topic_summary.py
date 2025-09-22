@@ -30,20 +30,20 @@ def remove_parentheses_content(text: str) -> str:
 
 import re
 
-def remove_parentheses_content(text: str) -> str:
+def remove_parentheses_content(text):
     pattern = r'[\(\[\<〈《][^)\]\>〉》]*[\)\]\>〉》]'
     cleaned = re.sub(pattern, '', text)
     return re.sub(r'\s{2,}', ' ', cleaned).strip()
 
 
-def restore_names_from_original(original: str, summary: str) -> str:
+def restore_names_from_original(original, summary):
     POSITION_SUFFIXES = ["의원", "장", "전", "당", "대표", "수석"]
     MAX_NAME_BLOCK = 4  # 최대 4단어까지 이름 블록으로 간주
 
     def split_words(text):
         return re.findall(r'\b[\w가-힣]+\b', text)
 
-    def get_position_suffix(word: str) -> str | None:
+    def get_position_suffix(word):
         for suffix in POSITION_SUFFIXES:
             if suffix in word:
                 return suffix
@@ -162,67 +162,6 @@ class RedundancyRemover:
 
         return text
 
-
-# class RedundancyRemover:
-#     POSITION_SUFFIXES = ["의원", "장", "당", "대표", "수석"]
-#     def __init__(self, min_common_len=3):
-#         self.min_common_len = min_common_len
-#         self._init_nlp()
-
-#     def _init_nlp(self):
-#         # self.nlp = stanza.Pipeline(...)
-#         self.nlp = nlp  # 외부에서 주입한 stanza Pipeline
-
-#     def tokenize(self, text: str):
-#         doc = self.nlp(text)
-#         return [word.text for sent in doc.sentences for word in sent.words]
-
-#     def lemmatize(self, text: str):
-#         doc = self.nlp(text)
-#         # print(doc)
-#         return [word.lemma.split('+')[0] for sent in doc.sentences for word in sent.words]
-
-#     def trim_redundant_block(self, text: str) -> str:
-#         while True:
-#             tokens = self.tokenize(text)
-#             lemmas = self.lemmatize(text)
-            
-#             print(lemmas)
-
-#             # lemma → 등장 인덱스 기록
-#             lemma_map = defaultdict(list)
-#             for idx, lemma in enumerate(lemmas):
-#                 lemma_map[lemma].append(idx)
-
-#             # 가장 긴 반복 구간 탐색
-#             max_start, max_end, max_len = -1, -1, 0
-
-#             for lemma, indices in lemma_map.items():
-#                 if len(indices) < 2:
-#                     continue
-#                 for i in range(len(indices)):
-#                     for j in range(i + 1, len(indices)):
-#                         start1, start2 = indices[i], indices[j]
-#                         length = 0
-#                         while (start1 + length < start2 and
-#                                start2 + length < len(lemmas) and
-#                                lemmas[start1 + length] == lemmas[start2 + length]):
-#                             length += 1
-#                         if length >= self.min_common_len and length > max_len:
-#                             max_len = length
-#                             max_start = start1
-#                             max_end = start1 + length
-
-#             # 제거할 중복 구간이 없다면 종료
-#             if max_len < self.min_common_len:
-#                 break
-
-#             # 중복 구간 제거
-#             tokens = tokens[:max_start] + tokens[max_end:]
-
-#             text = ' '.join(tokens).replace(" .", ".")
-
-#         return text
 
 class TopicExtractor:
     def __init__(self):

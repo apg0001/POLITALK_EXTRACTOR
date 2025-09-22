@@ -411,17 +411,17 @@ class Merger:
         idx = -1
 
         for i, sentence in enumerate(sentences):
-            print(i, " : ", sentence)
+            # print(i, " : ", sentence)
             if target_sentence in sentence:
                 idx = i
-                print(idx, " : 해당 문장!!!!!!")
+                # print(idx, " : 해당 문장!!!!!!")
 
         if idx == -1:
-            print("⚠ 입력된 문장이 문단 내에서 발견되지 않음.")
+            # print("⚠ 입력된 문장이 문단 내에서 발견되지 않음.")
             return False
 
         if idx == 0:
-            print("⚠ 입력된 문장이 문단의 첫 번째 문장이므로 앞 문장이 없음.")
+            # print("⚠ 입력된 문장이 문단의 첫 번째 문장이므로 앞 문장이 없음.")
             return False
         # print(idx)
         prev_sentence = sentences[idx - 1]
@@ -445,14 +445,14 @@ class Merger:
                 break
                 
         
-        print("이전 입력: ", prev)
-        print("이전 문장: ", prev_sentence)
+        # print("이전 입력: ", prev)
+        # print("이전 문장: ", prev_sentence)
 
         if any((sent in prev_sentence) or (prev_sentence in sent) for sent in prev) or any((sent in cur_sentence) or (cur_sentence in sent) for sent in prev):
-            print("case_base: 행합치기 대상.")
+            # print("case_base: 행합치기 대상.")
             return True
         else:
-            print("case_base: 앞문장이 큰따옴표 문장이 아니므로 행 합치기 대상이 아님.")
+            # print("case_base: 앞문장이 큰따옴표 문장이 아니므로 행 합치기 대상이 아님.")
             return False
 
     @classmethod
@@ -592,10 +592,10 @@ class Merger:
         case_exceptional_conjunction = cls.is_exceptional_conjunction(part_a)
         case_same_sentence = cls.case_same_sentence(paragraph, text, prev)
 
-        print(case_1, case_2, case_3, case_4, case_5,
-              case_base, case_exceptional_conjunction)
-        print((case_1 or case_2 or case_3 or case_4 or case_5)
-              and case_base and case_exceptional_conjunction, text, "\n================================================================")
+        # print(case_1, case_2, case_3, case_4, case_5,
+        #       case_base, case_exceptional_conjunction)
+        # print((case_1 or case_2 or case_3 or case_4 or case_5)
+        #       and case_base and case_exceptional_conjunction, text, "\n================================================================")
 
         return ((case_1 or case_2 or case_3 or case_4 or case_5) and case_base and case_exceptional_conjunction) or case_same_sentence
 

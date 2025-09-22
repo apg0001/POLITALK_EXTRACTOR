@@ -168,7 +168,15 @@ class TopicExtractor:
         self.summarizer = Summarizer()
         self.remover = RedundancyRemover()
 
-    def extract_topic(self, title=None, body=None, purpose=None, sentence=None, name=None):
+    def extract_topic(self, title=None, body=None, purpose=None, sentences=None, name=None):
+        # print(f"\n발언 제거 전 문단:\n{body}")
+        sentence = sentences.split("  ")
+        print("발언:\n")
+        for s in sentence:
+            # print(s)
+            body = body.replace(s, "")
+        # print(f"\n발언 제거 후 문장:\n{body}")
+
         summary = self.summarizer.summarize(body.replace("\n", " "))
         print(f"\n요약 결과:\t{summary}")
 

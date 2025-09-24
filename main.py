@@ -45,6 +45,8 @@ if __name__ == "__main__":
     # 확인
     print(f"JAVA_HOME: {os.getenv('JAVA_HOME')}")
 
+    os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
+
     is_logged_in = show_login_window()
 
     if is_logged_in:

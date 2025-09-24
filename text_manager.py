@@ -592,10 +592,10 @@ class Merger:
         case_exceptional_conjunction = cls.is_exceptional_conjunction(part_a)
         case_same_sentence = cls.case_same_sentence(paragraph, text, prev)
 
-        # print(case_1, case_2, case_3, case_4, case_5,
-        #       case_base, case_exceptional_conjunction)
-        # print((case_1 or case_2 or case_3 or case_4 or case_5)
-        #       and case_base and case_exceptional_conjunction, text, "\n================================================================")
+        print(case_1, case_2, case_3, case_4, case_5,
+              case_base, case_exceptional_conjunction)
+        print((case_1 or case_2 or case_3 or case_4 or case_5)
+              and case_base and case_exceptional_conjunction, text, "\n================================================================")
 
         return ((case_1 or case_2 or case_3 or case_4 or case_5) and case_base and case_exceptional_conjunction) or case_same_sentence
 
@@ -712,7 +712,7 @@ def extract_speaker(text):
     return speakers
 
 
-def calculate_similarity(sentence1, sentence2):
+def calculate_similarity(sentence1, sentence2, criteria):
     """두 문장을 단어 단위로 비교하여 유사도 계산 (80% 이상이면 동일한 문장으로 간주)"""
     words1 = set(sentence1.split())  # 첫 번째 문장을 단어 단위로 분리
     words2 = set(sentence2.split())  # 두 번째 문장을 단어 단위로 분리
@@ -720,14 +720,20 @@ def calculate_similarity(sentence1, sentence2):
         return False
     # 공통 단어 수 계산
     common_words = words1 & words2
-    total_words = min(len(words1), len(words2))  # 작은 쪽 기준으로 유사도 측정
+
+    if criteria == "max":
+        total_words = max(len(words1), len(words2))  # 큰 쪽 기준으로 유사도 측정
+        sim_thresh = 0.7
+    else:
+        total_words = min(len(words1), len(words2))  # 작은 쪽 기준으로 유사도 측정
+        sim_thresh = 0.8
 
     # 유사도 계산 (공통 단어 / 작은 쪽의 단어 수)
     similarity = len(common_words) / total_words if total_words > 0 else 0
     # print("sentence1: ", sentence1)
     # print("sentence2: ", sentence2)
     # print(f"중복 단어 수 : {len(common_words)}개, 전체 단어 수 : {total_words}개, 유사도 : {similarity*100}%")
-    return similarity >= 0.7  # 유사도가 80% 이상이면 True
+    return similarity >= sim_thresh  # 유사도가 80% 이상이면 True
 
 
 def normalize_text(text):
@@ -748,12 +754,21 @@ def is_valid_speaker_by_josa(speakers, sentence):
             # print(next_char)
             if next_char in ["은", "는", "도", "또한"]:
                 return True
-            # 혹은 speaker 다음 단어가 있는 경우 조사 확인
-            next_word = sentence[idx:].split()[0] if len(
-                sentence[idx:].split()) > 0 else ""
-            # print(next_word)
-            if next_word.endswith(("은", "는")):
-                return True
+            try:
+                # 혹은 speaker 다음 단어가 있는 경우 조사 확인
+                next_word = sentence[idx:].split()[0] if len(
+                    sentence[idx:].split()) > 0 else ""
+                # print(next_word)
+                if next_word.endswith(("은", "는", "도", "또한")):
+                    return True
+                # 혹은 speaker 다음 단어가 있는 경우 조사 확인
+                next_word = sentence[idx:].split()[1] if len(
+                    sentence[idx:].split()) > 0 else ""
+                # print(next_word)
+                if next_word.endswith(("은", "는", "도", "또한")):
+                    return True
+            except:
+                return False
     return False
 
 

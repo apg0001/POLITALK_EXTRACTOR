@@ -70,7 +70,7 @@ def run_gui():
             print(f"중복 제거 후 데이터 수 {len(duplicate_removed_data)}")
             # save_data_to_excel(extracted_data, excel_file, progress_bar, progress_label)
             save_data_to_excel(duplicate_removed_data, excel_file, progress_bar, progress_label)
-            save_data_to_csv(duplicate_removed_data, excel_file.replace(".xlsx", ".csv"), progress_bar, progress_label)
+            # save_data_to_csv(duplicate_removed_data, excel_file.replace(".xlsx", ".csv"), progress_bar, progress_label)
 
             messagebox.showinfo("완료", f"엑셀 파일이 '{excel_file}'로 저장되었습니다.")
             run_button.config(state=tk.NORMAL)

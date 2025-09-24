@@ -73,6 +73,10 @@ def extract_text_from_csv(csv_file):
                     # print(f"발언자: {speakers}\n문장: {sentence}")
                     add_flag = any(speaker.startswith(
                         row['이름'][0]) for speaker in speakers)
+                    for speaker in speakers:
+                        if len(speaker) == 3 and speaker != row['이름']:
+                            add_flag = False
+                            print(f"[추가 안함]이름 완전 불일치: {speaker}")
                     if not add_flag:
                         continue
                         # print(f"성 불일치: {sentence}")

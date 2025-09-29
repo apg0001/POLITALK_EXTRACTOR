@@ -46,36 +46,36 @@ def extract_text_from_csv(csv_file, progress_bar, progress_label):
         for sentence in sentences:
             _, clean_sentence = extract_and_clean_quotes(sentence)
             candidate_speakers = merge_tokens(extract_speaker(clean_sentence))
-            print(candidate_speakers)
+            # print(candidate_speakers)
 
             speakers = []
 
             # 단문이면 바로 추가
             if len(sentences) == 1:
-                print(f"[단문] 문장 추가: {sentence}")
+                # print(f"[단문] 문장 추가: {sentence}")
                 add_flag = True
             else:
                 # 조사 판별: '은', '는'만 통과
                 for name in candidate_speakers:
-                    print("후보 이름: ", name)
+                    # print("후보 이름: ", name)
                     if is_valid_speaker_by_josa(name, clean_sentence):
                         speakers.append(name)
 
                 # 성이 다른 경우 + 중문일 경우 제거
                 if speakers:
-                    print(f"발언자: {speakers}\n문장: {sentence}")
+                    # print(f"발언자: {speakers}\n문장: {sentence}")
                     add_flag = any(speaker.startswith(
                         row['이름'][0]) for speaker in speakers)
                     for speaker in speakers:
                         if len(speaker) == 3 and speaker != row['이름']:
                             add_flag = False
-                            print(f"[추가 안함]이름 완전 불일치: {speaker}")
+                            # print(f"[추가 안함]이름 완전 불일치: {speaker}")
 
                     if not add_flag:
-                        print(f"[추가 안함]성 불일치: {sentence}")
+                        # print(f"[추가 안함]성 불일치: {sentence}")
                         continue
                 else:
-                    print(f"[추가]발언자 없음 or 조사 불일치: {sentence}")
+                    # print(f"[추가]발언자 없음 or 조사 불일치: {sentence}")
                     add_flag = True  # 주어 없으면 그대로 추가
 
             if not add_flag:
@@ -91,7 +91,7 @@ def extract_text_from_csv(csv_file, progress_bar, progress_label):
                 "문장": to_string(row['발췌문장']),
                 "큰따옴표 발언": extract_quotes(sentence, to_string(row['이름']))
             }
-            print(extract_quotes(sentence, to_string(row['이름'])))
+            # print(extract_quotes(sentence, to_string(row['이름'])))
 
             if not any(is_empty(v) for v in current_data.values()):
                 extracted_data.append(current_data)
@@ -286,7 +286,7 @@ def remove_duplicates(data, progress_bar, progress_label):
                                     continue  # 기존 문장 삭제 → idx_exist는 유지
                                 else:
                                     # ✅ 기존 entry에 남은 문장 없으면 entry 자체 삭제
-                                    print(f"[{i}] 기존 entry {j} 삭제 (모든 문장 제거됨)")
+                                    # print(f"[{i}] 기존 entry {j} 삭제 (모든 문장 제거됨)")
                                     del duplicate_removed_data[j]
                                     del sentence_sets[j]
                                     j -= 1  # entry 삭제했으니 인덱스 보정
@@ -346,15 +346,14 @@ def save_data_to_excel(data, excel_file, progress_bar, progress_label):
         sheet.title = "발언 내용 정리"
 
         headers = ["날짜", "발언자 성명 및 직책", "신문사", "기사 제목",
-                   "주제", "문단", "발언의 목적 배경 취지", "큰따옴표 발언"]
+                   "발언의 배경", "문단", "발언의 목적 취지", "큰따옴표 발언"]
         sheet.append(headers)
 
         total_entries = len(data)
         progress_bar['maximum'] = total_entries
         start_time = time.time()  # 작업 시작 시간 기록
 
-        prev_purpose = None
-        prev_topic = None
+        prev_paragraph = None
         prev_title = None
 
         for i, entry in enumerate(data):
@@ -366,19 +365,23 @@ def save_data_to_excel(data, excel_file, progress_bar, progress_label):
         for i, entry in enumerate(data):
             if prev_title != entry["기사 제목"]:
                 prev_title = entry["기사 제목"]
-                prev_topic = None
-                prev_topic = None
-            entry["발언의 목적 배경 취지"] = prev_purpose = extract_purpose(
-                entry["발언자 성명 및 직책"], entry["기사 제목"], entry["문장"], entry["문단"], prev_purpose)
-            # entry["주제"] = extract_topic(
-            #     entry["기사 제목"], entry["큰따옴표 발언"], entry["발언자 성명 및 직책"])
+            entry["발언의 목적 취지"] = extract_purpose(
+                entry["발언자 성명 및 직책"], entry["기사 제목"], entry["문장"], entry["문단"])
+            
             extractor = TopicExtractor()
-            entry["주제"] = extractor.extract_topic(entry["기사 제목"], entry["문단"], entry["발언의 목적 배경 취지"], entry["큰따옴표 발언"], entry["발언자 성명 및 직책"])
+            if prev_title is not None and prev_paragraph is not None:
+                if prev_title == entry["기사 제목"] and prev_paragraph == entry["문단"]:
+                    pp=prev_paragraph
+                else:
+                    pp=None
+            else:
+                pp=None
+            entry["발언의 배경"] = extractor.extract_topic(entry["기사 제목"], entry["문단"], entry["발언의 목적 취지"], entry["큰따옴표 발언"], entry["발언자 성명 및 직책"], pp)
             row = [entry.get(header, "") for header in headers]
             sheet.append(row)
 
-            prev_topic = entry["주제"]
-            prev_purpose = entry["발언의 목적 배경 취지"]
+            prev_title = entry["기사 제목"]
+            prev_paragraph = entry["문단"]
 
             # 남은 예상 시간 계산
             elapsed_time = time.time() - start_time
@@ -394,13 +397,13 @@ def save_data_to_excel(data, excel_file, progress_bar, progress_label):
             # 프로그레스바 및 레이블 업데이트
             progress_bar['value'] = i + 1
             progress_label.config(
-                text=f"[4단계 중 4단계] 주제 추출 및 엑셀 파일 저장 중: {i + 1}/{total_entries} - 남은 예상 시간: {formatted_remaining_time}")
+                text=f"[4단계 중 4단계] 발언의 배경 추출 및 엑셀 파일 저장 중: {i + 1}/{total_entries} - 남은 예상 시간: {formatted_remaining_time}")
             progress_bar.update()
 
         workbook.save(excel_file)
         print(f"엑셀 파일이 '{excel_file}'로 저장되었습니다.")
     except Exception as e:
-        print(f"주제 추출 및 엑셀 파일 저장 중 오류 발생: {e}")
+        print(f"발언의 배경 추출 및 엑셀 파일 저장 중 오류 발생: {e}")
         traceback.print_exc()  # 자세한 오류 정보를 출력
 
 
@@ -411,61 +414,3 @@ test_codes에 써둔 NER 코드로 각 문장에서 사람 이름과 직위를 �
 1. 성이 동일하다 <- 일단 이것만 처리하자
 해당 문장이 그러하다면 인정!
 """
-def save_data_to_csv(data, csv_file, progress_bar=None, progress_label=None):
-    """추출된 데이터를 CSV 파일로 저장."""
-    if not data:
-        print("[CSV 파일 저장] 저장할 데이터가 없습니다.")
-        return
-
-    try:
-        headers = ["날짜", "발언자 성명 및 직책", "신문사", "기사 제목",
-                   "주제", "문단", "발언의 목적 배경 취지", "큰따옴표 발언"]
-
-        total_entries = len(data)
-        if progress_bar is not None:
-            progress_bar['maximum'] = total_entries
-        start_time = time.time()  # 작업 시작 시간 기록
-
-        prev_purpose = None
-        prev_topic = None
-        prev_title = None
-
-        # None 값을 빈 문자열로 대체
-        for entry in data:
-            for key, value in entry.items():
-                if value is None:
-                    entry[key] = ""
-
-        # 주제 및 목적 필드 처리
-        for i, entry in enumerate(data):
-            if prev_title != entry["기사 제목"]:
-                prev_title = entry["기사 제목"]
-                prev_topic = None
-                prev_purpose = None
-
-            entry["발언의 목적 배경 취지"] = prev_purpose = extract_purpose(
-                entry["발언자 성명 및 직책"], entry["기사 제목"], entry["문장"], entry["문단"], prev_purpose)
-            # 주제 추출 부분은 필요에 따라 활성화하세요
-            # entry["주제"] = extract_topic(entry["기사 제목"], entry["큰따옴표 발언"], entry["발언자 성명 및 직책"])
-            extractor = TopicExtractor()
-            entry["주제"] = extractor.extract_topic(entry["기사 제목"], entry["문단"], entry["발언의 목적 배경 취지"], entry["큰따옴표 발언"], entry["발언자 성명 및 직책"])
-
-            # 진행 상태 표시
-            if progress_bar is not None and progress_label is not None:
-                elapsed_time = time.time() - start_time
-                time_per_step = elapsed_time / (i + 1)
-                remaining_time = time_per_step * (total_entries - (i + 1))
-                formatted_remaining_time = format_remaining_time(remaining_time)
-                progress_bar['value'] = i + 1
-                progress_label.config(
-                    text=f"[4단계 중 4단계] 주제 추출 및 CSV 파일 저장 중: {i + 1}/{total_entries} - 남은 예상 시간: {formatted_remaining_time}")
-
-        # DataFrame 생성 후 CSV 저장
-        df = pd.DataFrame(data, columns=headers)
-        df.to_csv(csv_file, index=False, encoding='utf-8-sig')
-
-        print(f"CSV 파일이 '{csv_file}'로 저장되었습니다.")
-
-    except Exception as e:
-        print(f"주제 추출 및 CSV 파일 저장 중 오류 발생: {e}")
-        traceback.print_exc()

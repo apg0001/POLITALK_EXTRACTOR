@@ -93,7 +93,7 @@ def restore_names_from_original(original, summary):
                 ):
                     replacement_map[short_form] = full_name
 
-    print(replacement_map)
+    # print(replacement_map)
 
     # 실제 치환
     for short, full in replacement_map.items():
@@ -168,27 +168,33 @@ class TopicExtractor:
         self.summarizer = Summarizer()
         self.remover = RedundancyRemover()
 
-    def extract_topic(self, title=None, body=None, purpose=None, sentences=None, name=None):
+    def extract_topic(self, title=None, body=None, purpose=None, sentences=None, name=None, prev_paragraph=None):
         # print(f"\n발언 제거 전 문단:\n{body}")
         sentence = sentences.split("  ")
-        print("발언:\n")
+        # print("발언:\n")
         for s in sentence:
             # print(s)
-            body = body.replace(s, "")
+            new_body = body.replace(s, "")
         # print(f"\n발언 제거 후 문장:\n{body}")
+        if len(new_body.split()) < 5 and prev_paragraph is not None:
+            body = prev_paragraph + new_body
+        elif len(new_body.split()) < 11:
+            body = body
+        else:
+            body = new_body
 
         summary = self.summarizer.summarize(body.replace("\n", " "))
-        print(f"\n요약 결과:\t{summary}")
+        # print(f"\n요약 결과:\t{summary}")
 
         # 본문이 없는 경우 빈칸 반환
         if body == "" or "nan" in summary:
             return ""
 
         removed = self.remover.trim_redundant_block(summary)
-        print(f"중복 제거:\t{removed}")
+        # print(f"중복 제거:\t{removed}")
 
         replaced = restore_names_from_original(body, removed)
-        print(f"이름 복원:\t{replaced}")
+        # print(f"이름 복원:\t{replaced}")
 
         return replaced
 

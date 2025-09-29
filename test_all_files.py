@@ -7,10 +7,6 @@ from tqdm import tqdm
 import openpyxl
 from text_manager import *
 from extract_purpose import extract_purpose
-# from extract_purpose_summary import extract_purpose
-# from extract_topic_title_and_summary import extract_topic
-# from modify_title import Modifier, test
-# from extract_topic_logic import extract_topic
 from extract_topic_summary import TopicExtractor
 import datetime
 
@@ -76,7 +72,7 @@ def extract_text_from_csv(csv_file):
                     for speaker in speakers:
                         if len(speaker) == 3 and speaker != row['이름']:
                             add_flag = False
-                            print(f"[추가 안함]이름 완전 불일치: {speaker}")
+                            # print(f"[추가 안함]이름 완전 불일치: {speaker}")
                     if not add_flag:
                         continue
                         # print(f"성 불일치: {sentence}")
@@ -95,7 +91,7 @@ def extract_text_from_csv(csv_file):
                 "문단": to_string(row['발췌문단']),
                 # "문장": sentence,
                 "문장": to_string(row['발췌문장']),
-                "큰따옴표 발언": extract_quotes(sentence, to_string(row['이름']))
+                "발언": extract_quotes(sentence, to_string(row['이름']))
             }
 
             if not any(is_empty(v) for v in current_data.values()):
@@ -112,7 +108,7 @@ def extract_text_from_csv(csv_file):
         # 남은 시간을 형식에 맞춰 변환하여 표시
         formatted_remaining_time = format_remaining_time(remaining_time)
 
-        # print(f"[4단계 중 1단계] 파일 불러오기 및 큰따옴표 발언 추출 중 : {i + 1}/{total_rows} - 남은 예상 시간: {formatted_remaining_time}")
+        # print(f"[4단계 중 1단계] 파일 불러오기 및 발언 추출 중 : {i + 1}/{total_rows} - 남은 예상 시간: {formatted_remaining_time}")
 
     return extracted_data
 
@@ -150,17 +146,17 @@ def merge_data(data):
                 (merged_data[-1]["발언자 성명 및 직책"] == entry["발언자 성명 및 직책"]) and \
                 (merged_data[-1]["날짜"] == entry["날짜"]) and \
                 (merged_data[-1]["신문사"] == entry["신문사"]) and \
-                    (Merger.check_cases(entry["문장"], entry["문단"], data[i-1]["큰따옴표 발언"].split("  "))):
+                    (Merger.check_cases(entry["문장"], entry["문단"], data[i-1]["발언"].split("  "))):
 
                 # merged_data[-1]['문장'] += entry['문장']
-                # 병합 조건이면 가장 마지막 데이터에 큰따옴표 발언 추가ㅎ
-                if entry["큰따옴표 발언"] not in merged_data[-1]["큰따옴표 발언"]:
-                    merged_data[-1]["큰따옴표 발언"] += ("  " + entry["큰따옴표 발언"])
-                    # print("merged! : " + entry["큰따옴표 발언"] + " : " + entry["날짜"])
+                # 병합 조건이면 가장 마지막 데이터에 발언 추가ㅎ
+                if entry["발언"] not in merged_data[-1]["발언"]:
+                    merged_data[-1]["발언"] += ("  " + entry["발언"])
+                    # print("merged! : " + entry["발언"] + " : " + entry["날짜"])
                 # 병합할 때 문단이 다르다면 문단도 합치기
                 if entry["문단"] != merged_data[-1]["문단"]:
                     merged_data[-1]["문단"] += entry["문단"]
-                    # print("merged! : " + entry["큰따옴표 발언"] + " : " + entry["날짜"])
+                    # print("merged! : " + entry["발언"] + " : " + entry["날짜"])
             else:
                 # 병합 조건이 아니면 그대로 추가
                 merged_data.append(entry)
@@ -198,14 +194,14 @@ def remove_duplicates(data):
 
     try:
         for i, entry in enumerate(data):
-            original_sentences = entry["큰따옴표 발언"].split("  ")
+            original_sentences = entry["발언"].split("  ")
             normalized_sentences = [normalize_text(
                 s) for s in original_sentences]
 
             j = 0
             while j < len(sentence_sets):
                 existing_entry = duplicate_removed_data[j]
-                existing_sentences = existing_entry['큰따옴표 발언'].split("  ")
+                existing_sentences = existing_entry['발언'].split("  ")
                 existing_normalized = sentence_sets[j]['normalized']
                 
                 idx_new = 0
@@ -219,10 +215,10 @@ def remove_duplicates(data):
                             del existing_normalized[idx_exist]
                             # ✅ 기존 entry도 업데이트
                             if existing_sentences:
-                                existing_entry["큰따옴표 발언"] = "  ".join(
+                                existing_entry["발언"] = "  ".join(
                                     existing_sentences)
                                 sentence_sets[j] = {
-                                    'original': existing_entry["큰따옴표 발언"],
+                                    'original': existing_entry["발언"],
                                     'normalized': existing_normalized
                                 }
                                 continue  # 기존 문장 삭제 → idx_exist는 유지
@@ -248,10 +244,10 @@ def remove_duplicates(data):
                                 del existing_sentences[idx_exist]
                                 del existing_normalized[idx_exist]
                                 if existing_sentences:
-                                    existing_entry["큰따옴표 발언"] = "  ".join(
+                                    existing_entry["발언"] = "  ".join(
                                         existing_sentences)
                                     sentence_sets[j] = {
-                                        'original': existing_entry["큰따옴표 발언"],
+                                        'original': existing_entry["발언"],
                                         'normalized': existing_normalized
                                     }
                                     continue
@@ -266,11 +262,11 @@ def remove_duplicates(data):
                 j += 1
 
             if original_sentences:
-                entry["큰따옴표 발언"] = "  ".join(original_sentences)
+                entry["발언"] = "  ".join(original_sentences)
                 duplicate_removed_data.append(entry)
                 sentence_sets.append({
-                    'original': entry["큰따옴표 발언"],
-                    'normalized': [normalize_text(s) for s in entry["큰따옴표 발언"].split("  ")]
+                    'original': entry["발언"],
+                    'normalized': [normalize_text(s) for s in entry["발언"].split("  ")]
                 })
                 if len(sentence_sets) > 200:
                     sentence_sets.pop(0)
@@ -302,14 +298,13 @@ def save_data_to_excel(data, excel_file):
         sheet.title = "발언 내용 정리"
 
         headers = ["날짜", "발언자 성명 및 직책", "신문사", "기사 제목",
-                   "주제", "문단", "발언의 목적 배경 취지", "큰따옴표 발언"]
+                   "발언의 배경", "문단", "발언의 목적 취지", "발언"]
         sheet.append(headers)
 
         total_entries = len(data)
         start_time = time.time()
 
-        prev_purpose = None
-        prev_topic = None
+        prev_paragraph = None
         prev_title = None
 
         for i, entry in enumerate(data):
@@ -320,28 +315,35 @@ def save_data_to_excel(data, excel_file):
         for i, entry in enumerate(data):
             if prev_title != entry["기사 제목"]:
                 prev_title = entry["기사 제목"]
-                prev_topic = None
-            entry["발언의 목적 배경 취지"] = prev_purpose = extract_purpose(
-                entry["발언자 성명 및 직책"], entry["기사 제목"], entry["문장"], entry["문단"], prev_purpose)
+            entry["발언의 목적 취지"] = extract_purpose(
+                entry["발언자 성명 및 직책"], entry["기사 제목"], entry["문장"], entry["문단"])
             # def extract_topic(title, body, purpose, name, prev_topic):
-            # entry["주제"] = extract_topic(entry["기사 제목"], entry["큰따옴표 발언"], entry["발언자 성명 및 직책"])
-            # entry["주제"] = extract_topic(entry["기사 제목"], entry["큰따옴표 발언"], entry["발언의 목적 배경 취지"], entry["발언자 성명 및 직책"], prev_topic)
-            # entry["주제"] = "test"
-            # entry["주제"] = Modifier.modify_title(entry["기사 제목"])
-            # entry["주제"] = test(entry["기사 제목"])
-            # entry["주제"] = extract_topic(body = entry["문단"], name = entry["발언자 성명 및 직책"])
-            # entry["주제"] = extract_topic(text = entry["문단"])
+            # entry["발언의 배경"] = extract_topic(entry["기사 제목"], entry["발언"], entry["발언자 성명 및 직책"])
+            # entry["발언의 배경"] = extract_topic(entry["기사 제목"], entry["발언"], entry["발언의 목적 취지"], entry["발언자 성명 및 직책"], prev_topic)
+            # entry["발언의 배경"] = "test"
+            # entry["발언의 배경"] = Modifier.modify_title(entry["기사 제목"])
+            # entry["발언의 배경"] = test(entry["기사 제목"])
+            # entry["발언의 배경"] = extract_topic(body = entry["문단"], name = entry["발언자 성명 및 직책"])
+            # entry["발언의 배경"] = extract_topic(text = entry["문단"])
             extractor = TopicExtractor()
-            entry["주제"] = extractor.extract_topic(entry["기사 제목"], entry["문단"], entry["발언의 목적 배경 취지"], entry["큰따옴표 발언"], entry["발언자 성명 및 직책"])
+            if prev_title is not None and prev_paragraph is not None:
+                if prev_title == entry["기사 제목"] and prev_paragraph == entry["문단"]:
+                    pp=prev_paragraph
+                else:
+                    pp=None
+            else:
+                pp=None
 
-            # if (entry["주제"] == Modifier.normalize_text(entry["기사 제목"])):
+            entry["발언의 배경"] = extractor.extract_topic(entry["기사 제목"], entry["문단"], entry["발언의 목적 취지"], entry["발언"], entry["발언자 성명 및 직책"], pp)
+
+            # if (entry["발언의 배경"] == Modifier.normalize_text(entry["기사 제목"])):
                 # temp_title.append(entry["기사 제목"])
 
             row = [entry.get(header, "") for header in headers]
             sheet.append(row)
 
-            prev_topic = entry["주제"]
-            prev_purpose = entry["발언의 목적 배경 취지"]
+            prev_title = entry["기사 제목"]
+            prev_paragraph = entry["문단"]
 
             elapsed_time = time.time() - start_time
             time_per_step = elapsed_time / (i + 1)
@@ -349,69 +351,13 @@ def save_data_to_excel(data, excel_file):
             formatted_remaining_time = format_remaining_time(remaining_time)
 
             print(
-                f"[4단계 중 4단계] 주제 추출 및 엑셀 파일 저장 중: {i + 1}/{total_entries} - 남은 예상 시간: {formatted_remaining_time}")
+                f"[4단계 중 4단계] 발언의 배경 추출 및 엑셀 파일 저장 중: {i + 1}/{total_entries} - 남은 예상 시간: {formatted_remaining_time}")
 
         workbook.save(excel_file)
         print(f"엑셀 파일이 '{excel_file}'로 저장되었습니다.")
     except Exception as e:
-        print(f"주제 추출 및 엑셀 파일 저장 중 오류 발생: {e}")
+        print(f"발언의 배경 추출 및 엑셀 파일 저장 중 오류 발생: {e}")
         traceback.print_exc()  # 자세한 오류 정보를 출력
-
-
-def save_data_to_csv(data, csv_file):
-    """추출된 데이터를 CSV 파일로 저장."""
-    if not data:
-        print("[CSV 파일 저장] 저장할 데이터가 없습니다.")
-        return
-
-    try:
-        total_entries = len(data)
-        start_time = time.time()
-
-        prev_purpose = None
-        prev_topic = None
-        prev_title = None
-
-        # None 값을 빈 문자열로 변환
-        for entry in data:
-            for key, value in entry.items():
-                if value is None:
-                    entry[key] = ""
-
-        for i, entry in enumerate(data):
-            if prev_title != entry["기사 제목"]:
-                prev_title = entry["기사 제목"]
-                prev_topic = None
-            entry["발언의 목적 배경 취지"] = prev_purpose = extract_purpose(
-                entry["발언자 성명 및 직책"], entry["기사 제목"], entry["문장"], entry["문단"], prev_purpose)
-            # entry["주제"] = extract_topic(entry["기사 제목"], entry["큰따옴표 발언"], entry["발언자 성명 및 직책"])
-
-            # entry["주제"] = extract_topic(entry["기사 제목"], entry["큰따옴표 발언"], entry["발언의 목적 배경 취지"], entry["발언자 성명 및 직책"], prev_topic)
-            # entry["주제"] = "test"
-            # entry["주제"] = Modifier.modify_title(entry["기사 제목"])
-
-            prev_topic = entry["주제"]
-            prev_purpose = entry["발언의 목적 배경 취지"]
-
-            elapsed_time = time.time() - start_time
-            time_per_step = elapsed_time / (i + 1)
-            remaining_time = time_per_step * (total_entries - (i + 1))
-            formatted_remaining_time = format_remaining_time(remaining_time)
-
-            print(
-                f"[4단계 중 4단계] 주제 추출 및 CSV 파일 저장 중: {i + 1}/{total_entries} - 남은 예상 시간: {formatted_remaining_time}")
-
-        # DataFrame 생성 및 저장
-        df = pd.DataFrame(data)
-        columns = ["날짜", "발언자 성명 및 직책", "신문사", "기사 제목",
-                   "주제", "문단", "발언의 목적 배경 취지", "큰따옴표 발언"]
-        df = df.reindex(columns=columns)
-        df.to_csv(csv_file, index=False, encoding='utf-8-sig')
-
-        print(f"CSV 파일이 '{csv_file}'로 저장되었습니다.")
-    except Exception as e:
-        print(f"주제 추출 및 CSV 파일 저장 중 오류 발생: {e}")
-        traceback.print_exc()
 
 
 def process_file(csv_file, output_excel_file, output_csv_file):

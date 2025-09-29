@@ -1,7 +1,9 @@
+import os
+os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
+
 from gui_manager import run_gui
 from login import show_login_window
 import torch
-import os
 import glob
 
 
@@ -44,8 +46,6 @@ if __name__ == "__main__":
 
     # 확인
     print(f"JAVA_HOME: {os.getenv('JAVA_HOME')}")
-
-    os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 
     is_logged_in = show_login_window()
 

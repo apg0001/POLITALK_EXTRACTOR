@@ -592,10 +592,10 @@ class Merger:
         case_exceptional_conjunction = cls.is_exceptional_conjunction(part_a)
         case_same_sentence = cls.case_same_sentence(paragraph, text, prev)
 
-        print(case_1, case_2, case_3, case_4, case_5,
-              case_base, case_exceptional_conjunction)
-        print((case_1 or case_2 or case_3 or case_4 or case_5)
-              and case_base and case_exceptional_conjunction, text, "\n================================================================")
+        # print(case_1, case_2, case_3, case_4, case_5,
+        #       case_base, case_exceptional_conjunction)
+        # print((case_1 or case_2 or case_3 or case_4 or case_5)
+        #       and case_base and case_exceptional_conjunction, text, "\n================================================================")
 
         return ((case_1 or case_2 or case_3 or case_4 or case_5) and case_base and case_exceptional_conjunction) or case_same_sentence
 

@@ -1,0 +1,8 @@
+pandas
+openpyxl
+stanza
+transformers
+nltk
+chardet
+tk
+torch 

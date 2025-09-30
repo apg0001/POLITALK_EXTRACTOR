@@ -2,7 +2,7 @@ import os
 import glob
 import torch
 from gui_manager import run_gui
-from login import show_login_window
+from login import LoginWindow
 
 
 class ApplicationLauncher:
@@ -15,6 +15,7 @@ class ApplicationLauncher:
     def __init__(self):
         """ApplicationLauncher 초기화"""
         self.java_home = None
+        self.login_window = LoginWindow()
 
     def set_java_home(self):
         """JDK 자동 감지 및 JAVA_HOME 설정"""
@@ -59,7 +60,7 @@ class ApplicationLauncher:
         print(f"JAVA_HOME: {os.getenv('JAVA_HOME')}")
 
         # 로그인 후 GUI 실행
-        is_logged_in = show_login_window()
+        is_logged_in = self.login_window.show_login_window()
 
         if is_logged_in:
             run_gui()

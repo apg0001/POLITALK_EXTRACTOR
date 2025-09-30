@@ -6,12 +6,23 @@ from text_manager import nlp
 
 
 class Summarizer:
+    """텍스트 요약을 담당하는 클래스
+    
+    T5 기반 한국어 텍스트 요약 모델을 사용하여 긴 텍스트를 요약합니다.
+    """
+    
     def __init__(self, model_dir="lcw99/t5-base-korean-text-summary"):
+        """Summarizer 초기화
+        
+        Args:
+            model_dir (str): 사용할 T5 모델 경로
+        """
         self.tokenizer = AutoTokenizer.from_pretrained(model_dir)
         self.model = AutoModelForSeq2SeqLM.from_pretrained(model_dir)
         self.max_input_length = 2048
 
     def summarize(self, text, max_length=128):
+        """텍스트 요약 실행"""
         inputs = self.tokenizer([text], max_length=self.max_input_length,
                                 truncation=True, return_tensors="pt", padding=True)
         output = self.model.generate(
@@ -21,127 +32,110 @@ class Summarizer:
         return nltk.sent_tokenize(decoded.strip())[0]
 
 
-def remove_parentheses_content(text: str) -> str:
-    # 괄호쌍: (), [], <>, 〈〉, 《》
-    pattern = r'[\(\[\<〈《][^)\]\>〉》]*[\)\]\>〉》]'
-    cleaned = re.sub(pattern, '', text)
-    return re.sub(r'\s{2,}', ' ', cleaned).strip()
-
-
-import re
-
-def remove_parentheses_content(text):
-    pattern = r'[\(\[\<〈《][^)\]\>〉》]*[\)\]\>〉》]'
-    cleaned = re.sub(pattern, '', text)
-    return re.sub(r'\s{2,}', ' ', cleaned).strip()
-
-
-def restore_names_from_original(original, summary):
-    POSITION_SUFFIXES = ["의원", "장", "전", "당", "대표", "수석"]
-    MAX_NAME_BLOCK = 4  # 최대 4단어까지 이름 블록으로 간주
-
-    def split_words(text):
-        return re.findall(r'\b[\w가-힣]+\b', text)
-
-    def get_position_suffix(word):
-        for suffix in POSITION_SUFFIXES:
-            if suffix in word:
-                return suffix
-        return None
+class TextCleaner:
+    """텍스트 정리를 담당하는 클래스"""
     
-    def ends_with_particle(text):
-        return text.endswith(("은", "는", "이", "가", "와", "과", "도"))
+    @staticmethod
+    def remove_parentheses_content(text):
+        """괄호 내용 제거"""
+        pattern = r'[\(\[\<〈《][^)\]\>〉》]*[\)\]\>〉》]'
+        cleaned = re.sub(pattern, '', text)
+        return re.sub(r'\s{2,}', ' ', cleaned).strip()
 
-    original = remove_parentheses_content(original)
-    original_words = split_words(original)
-    summary_words = split_words(summary)
+    @staticmethod
+    def restore_names_from_original(original, summary):
+        """원문에서 이름 복원"""
+        POSITION_SUFFIXES = ["의원", "장", "전", "당", "대표", "수석"]
+        MAX_NAME_BLOCK = 4
 
-    # 원문에서 2~4단어씩 블록 추출
-    original_blocks = []
-    for i in range(len(original_words)):
-        for size in range(2, MAX_NAME_BLOCK + 1):
-            if i + size <= len(original_words):
-                block = original_words[i:i + size]
-                original_blocks.append(block)
+        def split_words(text):
+            return re.findall(r'\b[\w가-힣]+\b', text)
 
-    # 요약문 2단어쌍
-    summary_pairs = [(summary_words[i], summary_words[i + 1])
-                     for i in range(len(summary_words) - 1)]
+        def get_position_suffix(word):
+            for suffix in POSITION_SUFFIXES:
+                if suffix in word:
+                    return suffix
+            return None
+        
+        def ends_with_particle(text):
+            return text.endswith(("은", "는", "이", "가", "와", "과", "도"))
 
-    replacement_map = {}
+        original = TextCleaner.remove_parentheses_content(original)
+        original_words = split_words(original)
+        summary_words = split_words(summary)
 
-    for block in original_blocks:
-        if len(block) < 2:
-            continue
-        full_name = ' '.join(block)
-        o1 = block[0]
-        o2 = block[-1]  # 직책 추정
+        original_blocks = []
+        for i in range(len(original_words)):
+            for size in range(2, MAX_NAME_BLOCK + 1):
+                if i + size <= len(original_words):
+                    block = original_words[i:i + size]
+                    original_blocks.append(block)
 
-        for s1, s2 in summary_pairs:
-            suffix_o = get_position_suffix(o2)
-            suffix_s = get_position_suffix(s2)
-            if (
-                o1[0] == s1 and
-                (o2 == s2 or (suffix_o and suffix_o == suffix_s)) and
-                len(o1) >= 2 and
-                len(o1) <= 3
-            ):
-                short_form = f"{s1} {s2}"
-                if (
-                    short_form not in replacement_map or
-                    len(full_name) < len(replacement_map[short_form])
-                ):
-                    replacement_map[short_form] = full_name
+        summary_pairs = [(summary_words[i], summary_words[i + 1])
+                         for i in range(len(summary_words) - 1)]
 
-    # print(replacement_map)
+        replacement_map = {}
 
-    # 실제 치환
-    for short, full in replacement_map.items():
-        if short in full:
-            continue
-        if (ends_with_particle(short) and ends_with_particle(full)) or \
-            (not ends_with_particle(short) and not ends_with_particle(full)):
-            summary = summary.replace(short, full)
+        for block in original_blocks:
+            if len(block) < 2:
+                continue
+            full_name = ' '.join(block)
+            o1 = block[0]
+            o2 = block[-1]
 
-    return summary
+            for s1, s2 in summary_pairs:
+                suffix_o = get_position_suffix(o2)
+                suffix_s = get_position_suffix(s2)
+                if (o1[0] == s1 and
+                    (o2 == s2 or (suffix_o and suffix_o == suffix_s)) and
+                    len(o1) >= 2 and len(o1) <= 3):
+                    short_form = f"{s1} {s2}"
+                    if (short_form not in replacement_map or
+                        len(full_name) < len(replacement_map[short_form])):
+                        replacement_map[short_form] = full_name
+
+        for short, full in replacement_map.items():
+            if short in full:
+                continue
+            if ((ends_with_particle(short) and ends_with_particle(full)) or
+                (not ends_with_particle(short) and not ends_with_particle(full))):
+                summary = summary.replace(short, full)
+
+        return summary
 
 
 class RedundancyRemover:
+    """중복 제거를 담당하는 클래스"""
+    
     def __init__(self, min_common_len=3):
         self.min_common_len = min_common_len
-        self._init_nlp()
-
-    def _init_nlp(self):
-        # stanza.download('ko')
-        # self.nlp = stanza.Pipeline(
-        #     lang='ko', processors='tokenize,pos,lemma', verbose=False)
         self.nlp = nlp
 
-    def tokenize(self, text: str):
+    def tokenize(self, text):
+        """텍스트를 토큰으로 분리"""
         doc = self.nlp(text)
         return [word.text for sent in doc.sentences for word in sent.words]
 
-    def lemmatize(self, text: str):
+    def lemmatize(self, text):
+        """텍스트를 원형으로 변환"""
         doc = self.nlp(text)
         return [word.lemma.split('+')[0] for sent in doc.sentences for word in sent.words]
 
-    def trim_redundant_block(self, text: str) -> str:
+    def trim_redundant_block(self, text):
+        """중복 구간 제거"""
         tokens = self.tokenize(text)
         lemmas = self.lemmatize(text)
 
-        # lemma -> 모든 등장 인덱스 기록
         lemma_map = defaultdict(list)
         for idx, lemma in enumerate(lemmas):
             lemma_map[lemma].append(idx)
 
-        # 연속된 반복 구간 후보 찾기
         max_start, max_end = -1, -1
         max_len = 0
 
         for lemma, indices in lemma_map.items():
             if len(indices) < 2:
                 continue
-            # 모든 가능한 (i, j) 쌍 비교 (i < j)
             for i in range(len(indices)):
                 for j in range(i + 1, len(indices)):
                     start1, start2 = indices[i], indices[j]
@@ -155,7 +149,6 @@ class RedundancyRemover:
                         max_start = start1
                         max_end = start1 + length
 
-        # 제거할 중복 구간이 있다면 제거
         if max_len >= self.min_common_len:
             new_tokens = tokens[:max_start] + tokens[max_end:]
             return ' '.join(new_tokens).replace(" .", ".")
@@ -164,18 +157,40 @@ class RedundancyRemover:
 
 
 class TopicExtractor:
+    """주제 추출을 담당하는 메인 클래스
+    
+    발언문에서 주제와 배경을 추출하는 전체 파이프라인을 관리합니다.
+    요약, 중복 제거, 이름 복원 등의 과정을 거쳐 최종 주제를 추출합니다.
+    """
+    
     def __init__(self):
+        """TopicExtractor 초기화
+        
+        필요한 하위 프로세서들을 초기화합니다.
+        """
         self.summarizer = Summarizer()
         self.remover = RedundancyRemover()
+        self.text_cleaner = TextCleaner()
 
     def extract_topic(self, title=None, body=None, purpose=None, sentences=None, name=None, prev_paragraph=None):
-        # print(f"\n발언 제거 전 문단:\n{body}")
+        """주제 추출 메인 함수
+        
+        Args:
+            title (str): 기사 제목
+            body (str): 발언문 본문
+            purpose (str): 발언의 목적
+            sentences (str): 발언문들
+            name (str): 발언자 이름
+            prev_paragraph (str): 이전 문단
+            
+        Returns:
+            str: 추출된 주제/배경
+        """
         sentence = sentences.split("  ")
-        # print("발언:\n")
+        
         for s in sentence:
-            # print(s)
             new_body = body.replace(s, "")
-        # print(f"\n발언 제거 후 문장:\n{body}")
+        
         if len(new_body.split()) < 5 and prev_paragraph is not None:
             body = prev_paragraph + new_body
         elif len(new_body.split()) < 11:
@@ -184,28 +199,21 @@ class TopicExtractor:
             body = new_body
 
         summary = self.summarizer.summarize(body.replace("\n", " "))
-        # print(f"\n요약 결과:\t{summary}")
 
-        # 본문이 없는 경우 빈칸 반환
         if body == "" or "nan" in summary:
             return ""
 
         removed = self.remover.trim_redundant_block(summary)
-        # print(f"중복 제거:\t{removed}")
-
-        replaced = restore_names_from_original(body, removed)
-        # print(f"이름 복원:\t{replaced}")
+        replaced = self.text_cleaner.restore_names_from_original(body, removed)
 
         return replaced
 
 
-# 🔍 예시 실행
-if __name__ == "__main__":
-    title = "김 의원, 장애인예술단 설립 질의"
-    body1 = """
-민주당 의원들은 집회 참석에 이어 사회관계망서비스(SNS)를 통해서도 정부·여당을 향한 규탄 메시지를 앞다퉈 쏟아냈다. 이연희 의원은 "총선에서 국민이 심판했는데 대통령이 듣지 않는다면 국민들이 나서야 한다"며 "윤석열 정권이 국정 기조를 전환하고 인적 쇄신을 이룰 때까지 국민들이 나서서 윤 대통령을 굴복시켜야 한다. 그 길에 민주당이 앞장설 것"이라고 했다. 윤건영 의원은 "정부와 여당은 한 몸으로 해병대원 특검법을 거부했다. 진실을 숨기고 자기 자신만 지키기 위한 합동 권한남용 작전"이라며 "끝까지 숨길 수 있는 진실은 없다"고 강조했다. 염태영 의원은 "국방의 의무를 다하다 순직한 한 젊은 군인과 그 가족들의 한을 풀 수 있도록 해달라"며 "손바닥으로 하늘을 가리려는 대통령과 여당을 국민의 매서운 회초리로 응징해달라"고 호소했다. 김동아 의원은 "(정부·여당이) 권력을 사적으로 악용하는 모습을 더 이상 우리는 용납하지 않을 것이다. 신속하고 강력하게 국민이 위임한 권한을 행사해나갈 것"이라고 했다.
+# 하위 호환성을 위한 함수들
+def remove_parentheses_content(text):
+    cleaner = TextCleaner()
+    return cleaner.remove_parentheses_content(text)
 
-"""
-
-    extractor = TopicExtractor()
-    topic = extractor.extract_topic(title=title, body=body1)
+def restore_names_from_original(original, summary):
+    cleaner = TextCleaner()
+    return cleaner.restore_names_from_original(original, summary)

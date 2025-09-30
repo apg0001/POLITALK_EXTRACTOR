@@ -44,12 +44,13 @@ class BatchFileProcessor:
             # GUI가 없으므로 더미 진행률 추적기 생성
             from utils import ProgressTracker
             import tkinter as tk
+            from tkinter import ttk
             
             # 더미 GUI 컴포넌트 생성
             root = tk.Tk()
             root.withdraw()  # 창을 숨김
             
-            progress_bar = tk.ttk.Progressbar(root, mode='determinate')
+            progress_bar = ttk.Progressbar(root, mode='determinate')
             progress_label = tk.Label(root)
             
             progress_tracker = ProgressTracker(progress_bar, progress_label)
@@ -150,6 +151,8 @@ def process_multiple_files(directory_path, output_dir):
 # 테스트용 코드
 if __name__ == "__main__":
     formatted_date = datetime.datetime.now().strftime('%y%m%d')
+    # directory_path = "C:/Users/user/Downloads/Input Sample Files"
+    # output_dir = f"C:/Users/user/Downloads/output_{formatted_date}"
     directory_path = "C:/Users/apg00/Downloads/Input Sample Files"
     output_dir = f"C:/Users/apg00/Downloads/output_{formatted_date}"
 

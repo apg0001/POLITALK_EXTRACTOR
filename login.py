@@ -92,7 +92,7 @@ class LoginWindow:
         # 부제목
         subtitle_label = tk.Label(
             header_frame,
-            text="CSV to Excel 변환기에 로그인하세요",
+            text="Politalk 발언발췌 CSV to Excel 변환기에 로그인하세요",
             font=("맑은 고딕", 12),
             fg=self.colors['text_light'],
             bg=self.colors['background']
@@ -162,7 +162,7 @@ class LoginWindow:
         # 로그인 버튼
         login_button = tk.Button(
             inner_frame,
-            text="🚀 로그인",
+            text="로그인",
             command=self._login,
             font=("맑은 고딕", 14, "bold"),
             bg=self.colors['primary'],

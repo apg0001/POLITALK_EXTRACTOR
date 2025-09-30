@@ -368,7 +368,7 @@ class CSVExcelConverterGUI:
             # 성공 메시지
             success_window = tk.Toplevel(self.root)
             success_window.title("✅ 변환 완료")
-            success_window.geometry("400x200")
+            success_window.geometry("400x300")
             success_window.configure(bg=self.colors['background'])
             success_window.resizable(False, False)
             

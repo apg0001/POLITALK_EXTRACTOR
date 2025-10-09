@@ -51,10 +51,35 @@ class CSVExcelConverterGUI:
         # 창 중앙에 배치
         self._center_window()
         
-        # 아이콘 설정 (선택사항)
+        # 아이콘 설정 (icon.png 우선, icon.ico 있으면 함께 시도)
         try:
-            self.root.iconbitmap("icon.ico")
-        except:
+            if getattr(sys, 'frozen', False):
+                base_path = os.path.dirname(sys.executable)
+            else:
+                base_path = os.path.dirname(os.path.abspath(__file__))
+
+            # 우선순위: 실행 경로의 파일 → MEIPASS 리소스 → 현재 작업 디렉토리
+            candidates = [
+                os.path.join(base_path, "icon.png"),
+                os.path.join(getattr(sys, "_MEIPASS", base_path)),
+                os.path.join(os.path.abspath("."), "icon.png"),
+            ]
+            icon_png = next((p for p in candidates if isinstance(p, str) and p.endswith("icon.png") and os.path.exists(p)), None)
+
+            if icon_png:
+                # PhotoImage가 가비지 컬렉션 되지 않도록 참조 유지
+                self._icon_img = tk.PhotoImage(file=icon_png)
+                self.root.iconphoto(True, self._icon_img)
+
+            # Windows 작업 표시줄용 .ico가 있다면 추가 설정
+            ico_path = os.path.join(base_path, "icon.ico")
+            if os.path.exists(ico_path):
+                try:
+                    self.root.iconbitmap(ico_path)
+                except Exception:
+                    pass
+
+        except Exception as _:
             pass
 
         self._create_widgets()

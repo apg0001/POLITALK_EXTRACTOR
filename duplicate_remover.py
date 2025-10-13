@@ -114,7 +114,6 @@ class DuplicateRemover:
                     })
                     if len(sentence_sets) > 200:
                         sentence_sets.pop(0)
-                        duplicate_removed_data.pop(0)
 
                 progress_tracker.update_progress(
                     i + 1, total_entries,

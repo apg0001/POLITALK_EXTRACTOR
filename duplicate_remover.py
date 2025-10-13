@@ -1,7 +1,6 @@
 """중복 제거를 담당하는 클래스"""
 
 import traceback
-from utils import ProgressTracker
 
 
 class DuplicateRemover:

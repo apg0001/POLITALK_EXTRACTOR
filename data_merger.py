@@ -1,7 +1,6 @@
 """데이터 병합을 담당하는 클래스"""
 
 import traceback
-from utils import ProgressTracker
 
 
 class DataMerger:
@@ -53,8 +52,9 @@ class DataMerger:
                     if entry["큰따옴표 발언"] not in merged_data[-1]["큰따옴표 발언"]:
                         merged_data[-1]["큰따옴표 발언"] += ("  " + entry["큰따옴표 발언"])
                     
-                    if entry["문단"] != merged_data[-1]["문단"]:
-                        merged_data[-1]["문단"] += entry["문단"]
+                    # if entry["문단"] != merged_data[-1]["문단"]:
+                    #     merged_data[-1]["문단"] += entry["문단"]
+                    entry["문단"] = self.merge_paragraphs(merged_data[-1]["문단"], entry["문단"])
                 else:
                     merged_data.append(entry)
 
@@ -69,3 +69,23 @@ class DataMerger:
             traceback.print_exc()
 
         return merged_data
+    def merge_paragraphs(*paragraphs):
+        merged = []
+        for para in paragraphs:
+            sentences = para.split('. ')
+            for s in sentences:
+                if s not in merged:
+                    merged.append(s)
+        return '. '.join(merged)
+
+    def merge_paragraphs(self, para1, para2):
+        sentences1 = para1.split('.')  # 문장 단위 분리 (필요하면 문장 구분자 조정)
+        sentences2 = para2.split('.')
+        
+        merged = sentences1[:]  # 첫 번째 문단 문장 복사
+        
+        for s in sentences2:
+            if s not in merged:
+                merged.append(s)
+                
+        return '.'.join(merged)

@@ -111,8 +111,8 @@ class DuplicateRemover:
                         'original': entry["큰따옴표 발언"],
                         'normalized': [text_processor.normalize_text(s) for s in entry["큰따옴표 발언"].split("  ")]
                     })
-                    if len(sentence_sets) > 200:
-                        sentence_sets.pop(0)
+                    # if len(sentence_sets) > 200:
+                    #     sentence_sets.pop(0)
 
                 progress_tracker.update_progress(
                     i + 1, total_entries,

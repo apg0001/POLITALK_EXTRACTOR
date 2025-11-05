@@ -44,7 +44,7 @@ class CSVExcelConverterGUI:
     def run_gui(self):
         """Tkinter 기반 GUI 실행"""
         self.root = tk.Tk()
-        self.root.title("Politalk 발언발췌 CSV to Excel 변환기")
+        self.root.title("행합치기 및 중복제거")
         self.root.geometry("900x700")
         self.root.configure(bg=self.colors['background'])
         
@@ -123,7 +123,7 @@ class CSVExcelConverterGUI:
         # 제목
         title_label = tk.Label(
             header_frame, 
-            text="Politalk 발언발췌 CSV to Excel 변환기", 
+            text="행합치기 및 중복제거", 
             font=("맑은 고딕", 24, "bold"),
             fg=self.colors['primary'],
             bg=self.colors['background']

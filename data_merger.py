@@ -58,7 +58,7 @@ class DataMerger:
                     #     merged_data[-1]["문단"], entry["문단"])
                     merged_data[-1]["문단"] = self.merge_paragraphs(
                         merged_data[-1]["문단"], entry["문단"])
-                    merged_data[-1]["문장"] += entry["문장"]
+                    merged_data[-1]["문장"] += (" " + entry["문장"])
                 else:
                     merged_data.append(entry)
 
@@ -75,8 +75,8 @@ class DataMerger:
         return merged_data
 
     def merge_paragraphs(self, para1, para2):
-        sentences1 = para1.split('.')  # 문장 단위 분리 (필요하면 문장 구분자 조정)
-        sentences2 = para2.split('.')
+        sentences1 = para1.split('. ')  # 문장 단위 분리 (필요하면 문장 구분자 조정)
+        sentences2 = para2.split('. ')
 
         merged = sentences1[:]  # 첫 번째 문단 문장 복사
 
@@ -86,7 +86,7 @@ class DataMerger:
                 
         print("para1: ", para1)
         print("para2: ", para2)
-        print("merged: ", '.'.join(merged))
+        print("merged: ", '. '.join(merged))
         print("\n\n----------------------------------------------------------\n\n")
 
-        return '.'.join(merged)
+        return '. '.join(merged)

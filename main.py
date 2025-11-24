@@ -1,6 +1,8 @@
 import os
+os.environ['KMP_DUPLICATE_LIB_OK']='True'
+
 import glob
-import torch
+# import torch
 from gui_manager import run_gui
 from login import LoginWindow
 
@@ -14,34 +16,34 @@ class ApplicationLauncher:
     
     def __init__(self):
         """ApplicationLauncher 초기화"""
-        self.java_home = None
+        # self.java_home = None
         self.login_window = LoginWindow()
 
-    def set_java_home(self):
-        """JDK 자동 감지 및 JAVA_HOME 설정"""
-        possible_paths = [
-            r"C:\Program Files\Java",
-            r"C:\Program Files (x86)\Java"
-        ]
+    # def set_java_home(self):
+    #     """JDK 자동 감지 및 JAVA_HOME 설정"""
+    #     possible_paths = [
+    #         r"C:\Program Files\Java",
+    #         r"C:\Program Files (x86)\Java"
+    #     ]
 
-        for path in possible_paths:
-            if os.path.exists(path):
-                jdk_paths = glob.glob(os.path.join(path, "jdk-*"))
-                if jdk_paths:
-                    self.java_home = sorted(jdk_paths)[-1]
-                    break
+    #     for path in possible_paths:
+    #         if os.path.exists(path):
+    #             jdk_paths = glob.glob(os.path.join(path, "jdk-*"))
+    #             if jdk_paths:
+    #                 self.java_home = sorted(jdk_paths)[-1]
+    #                 break
 
-        if self.java_home:
-            os.environ["JAVA_HOME"] = self.java_home
-            os.environ["Path"] = os.environ["Path"] + ";" + os.path.join(self.java_home, "bin")
-            print(f"JAVA_HOME 설정 완료: {self.java_home}")
-        else:
-            print("JDK를 찾을 수 없습니다. JDK를 설치하거나 JAVA_HOME을 수동으로 설정하세요.")
+    #     if self.java_home:
+    #         os.environ["JAVA_HOME"] = self.java_home
+    #         os.environ["Path"] = os.environ["Path"] + ";" + os.path.join(self.java_home, "bin")
+    #         print(f"JAVA_HOME 설정 완료: {self.java_home}")
+    #     else:
+    #         print("JDK를 찾을 수 없습니다. JDK를 설치하거나 JAVA_HOME을 수동으로 설정하세요.")
 
-    def check_cuda_availability(self):
-        """CUDA 가용성 확인"""
-        print(f"CUDA Available: {torch.cuda.is_available()}")
-        print(f"CUDA Version: {torch.version.cuda}")
+    # def check_cuda_availability(self):
+    #     """CUDA 가용성 확인"""
+    #     print(f"CUDA Available: {torch.cuda.is_available()}")
+    #     print(f"CUDA Version: {torch.version.cuda}")
 
     def run(self):
         """애플리케이션 실행
@@ -53,11 +55,11 @@ class ApplicationLauncher:
         4. GUI 실행
         """
         # CUDA 가용성 확인
-        self.check_cuda_availability()
+        # self.check_cuda_availability()
 
         # JAVA_HOME 설정
-        self.set_java_home()
-        print(f"JAVA_HOME: {os.getenv('JAVA_HOME')}")
+        # self.set_java_home()
+        # print(f"JAVA_HOME: {os.getenv('JAVA_HOME')}")
 
         # 로그인 후 GUI 실행
         is_logged_in = self.login_window.show_login_window()

@@ -1,7 +1,5 @@
 import re
 import stanza
-from transformers import AutoTokenizer, AutoModelForTokenClassification, pipeline
-from collections import defaultdict
 from ner_extractor import NERExtractor
 from text_cleaner import TextCleaner
 

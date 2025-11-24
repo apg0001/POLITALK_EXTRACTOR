@@ -2,7 +2,7 @@
 
 import pandas as pd
 import chardet
-from utils import DataValidator, ProgressTracker
+from utils import DataValidator
 
 
 class CSVReader:

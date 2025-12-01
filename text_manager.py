@@ -2,10 +2,20 @@ import re
 import stanza
 from ner_extractor import NERExtractor
 from text_cleaner import TextCleaner
+import torch
+
+# 자동 디바이스 감지
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # Stanza 한국어 모델 로드
 stanza.download("ko")
-nlp = stanza.Pipeline("ko", processors='tokenize,pos,lemma,depparse')
+nlp = stanza.Pipeline(
+    "ko", 
+    processors='tokenize,pos,lemma,depparse', 
+    use_gpu=torch.cuda.is_available(),
+    device=device
+)
+print(f"Stanza Using device: {device}")
 
 
 class TextProcessor:

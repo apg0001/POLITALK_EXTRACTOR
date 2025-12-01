@@ -20,6 +20,7 @@ class Summarizer:
         self.tokenizer = AutoTokenizer.from_pretrained(model_dir)
         self.model = AutoModelForSeq2SeqLM.from_pretrained(model_dir)
         self.max_input_length = 2048
+        
 
     def summarize(self, text, max_length=128):
         """텍스트 요약 실행"""
@@ -172,6 +173,9 @@ class TopicExtractor:
         self.remover = RedundancyRemover()
         self.text_cleaner = TextCleaner()
 
+        print(f"Summurize Model device: {self.summarizer.model.device}")  # cuda:0 또는 cpu
+
+
     def extract_topic(self, title=None, body=None, purpose=None, sentences=None, name=None, prev_paragraph=None):
         """주제 추출 메인 함수
         
@@ -186,25 +190,54 @@ class TopicExtractor:
         Returns:
             str: 추출된 주제/배경
         """
-        sentence = sentences.split("  ")
-        
-        for s in sentence:
-            new_body = body.replace(s, "")
-        
-        if len(new_body.split()) < 5 and prev_paragraph is not None:
-            body = prev_paragraph + new_body
-        elif len(new_body.split()) < 11:
-            body = body
+        # sentences(따옴표 발언문) 을 본문에서 제거하여
+        # "발언의 배경"으로 사용할 비발언(설명/배경) 부분을 우선 추출한다.
+        new_body = body or ""
+
+        if sentences:
+            # 발언문이 "  " (공백 두 개) 기준으로 이어져 넘어오는 구조 가정
+            quoted_sentences = sentences.split("  ")
+            for s in quoted_sentences:
+                if not s:
+                    continue
+                new_body = new_body.replace(s, "")
+
+        # 공백 정리
+        new_body = new_body.replace("\n", " ").strip()
+        prev_text = (prev_paragraph or "").replace("\n", " ").strip()
+
+        # 유형 1, 2, 3 분기
+        #
+        # - 유형 1: 발언문단에 큰따옴표 문장 이외의 문장이 있는 경우
+        #   case 1) 비발언(new_body)만 요약
+        #   case 2) 비발언(new_body)이 너무 짧으면 앞 문단(prev_paragraph)과 합쳐서 요약
+        #          → 비발언 단어 수가 9개 이하면 합침
+        # - 유형 2: 발언문단에 큰따옴표 문장 이외의 문장이 없는 경우
+        #   → 앞의 문단(prev_paragraph)만 요약
+        # - 유형 3: 비발언도 없고 앞의 문단도 없는 경우
+        #   → 요약 생략 (빈 문자열 반환)
+
+        if new_body:  # 유형 1
+            non_quote_words = new_body.split()
+            if prev_text and len(non_quote_words) <= 9:
+                # case 2: 비발언이 짧을 때 앞 문단과 함께 요약
+                target_body = f"{prev_text} {new_body}".strip()
+            else:
+                # case 1: 비발언만 요약
+                target_body = new_body
         else:
-            body = new_body
+            if prev_text:  # 유형 2
+                target_body = prev_text
+            else:  # 유형 3
+                return ""
 
-        summary = self.summarizer.summarize(body.replace("\n", " "))
+        summary = self.summarizer.summarize(target_body.replace("\n", " "))
 
-        if body == "" or "nan" in summary:
+        if target_body == "" or "nan" in summary:
             return ""
 
         removed = self.remover.trim_redundant_block(summary)
-        replaced = self.text_cleaner.restore_names_from_original(body, removed)
+        replaced = self.text_cleaner.restore_names_from_original(target_body, removed)
 
         return replaced
 

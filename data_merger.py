@@ -84,9 +84,9 @@ class DataMerger:
             if s not in merged:
                 merged.append(s)
                 
-        print("para1: ", para1)
-        print("para2: ", para2)
-        print("merged: ", '. '.join(merged))
-        print("\n\n----------------------------------------------------------\n\n")
+        # print("para1: ", para1)
+        # print("para2: ", para2)
+        # print("merged: ", '. '.join(merged))
+        # print("\n\n----------------------------------------------------------\n\n")
 
         return '. '.join(merged)

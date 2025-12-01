@@ -5,4 +5,4 @@ transformers
 nltk
 chardet
 tk
-torch 
+# torch 

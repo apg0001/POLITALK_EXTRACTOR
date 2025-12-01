@@ -3,33 +3,53 @@ import nltk
 import re
 from collections import defaultdict
 from text_manager import nlp
+import torch
 
 
 class Summarizer:
     """텍스트 요약을 담당하는 클래스
-    
+
     T5 기반 한국어 텍스트 요약 모델을 사용하여 긴 텍스트를 요약합니다.
     """
-    
+
     def __init__(self, model_dir="lcw99/t5-base-korean-text-summary"):
         """Summarizer 초기화
-        
+
         Args:
             model_dir (str): 사용할 T5 모델 경로
         """
         self.tokenizer = AutoTokenizer.from_pretrained(model_dir)
-        self.model = AutoModelForSeq2SeqLM.from_pretrained(model_dir)
+
+        # CUDA 사용 가능 시 GPU에 로드, 아니면 CPU 사용
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.model = AutoModelForSeq2SeqLM.from_pretrained(model_dir).to(self.device)
+
         self.max_input_length = 2048
-        
+
+        # 디바이스 정보 출력
+        device_str = "CUDA" if self.device.type == "cuda" else "CPU"
+        print(f"{model_dir} Using {device_str}")
 
     def summarize(self, text, max_length=128):
-        """텍스트 요약 실행"""
-        inputs = self.tokenizer([text], max_length=self.max_input_length,
-                                truncation=True, return_tensors="pt", padding=True)
+        """텍스트 요약 실행 (가능하면 GPU 사용)"""
+        inputs = self.tokenizer(
+            [text],
+            max_length=self.max_input_length,
+            truncation=True,
+            return_tensors="pt",
+            padding=True,
+        )
+        # 토치 텐서를 모델과 같은 디바이스로 이동
+        inputs = {k: v.to(self.device) for k, v in inputs.items()}
+
         output = self.model.generate(
-            **inputs, num_beams=16, do_sample=False, min_length=1, max_length=max_length)
-        decoded = self.tokenizer.batch_decode(
-            output, skip_special_tokens=True)[0]
+            **inputs,
+            num_beams=16,
+            do_sample=False,
+            min_length=1,
+            max_length=max_length,
+        )
+        decoded = self.tokenizer.batch_decode(output, skip_special_tokens=True)[0]
         return nltk.sent_tokenize(decoded.strip())[0]
 
 
@@ -172,9 +192,6 @@ class TopicExtractor:
         self.summarizer = Summarizer()
         self.remover = RedundancyRemover()
         self.text_cleaner = TextCleaner()
-
-        print(f"Summurize Model device: {self.summarizer.model.device}")  # cuda:0 또는 cpu
-
 
     def extract_topic(self, title=None, body=None, purpose=None, sentences=None, name=None, prev_paragraph=None):
         """주제 추출 메인 함수

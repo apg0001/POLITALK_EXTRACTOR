@@ -5,7 +5,7 @@ from text_cleaner import TextCleaner
 import torch
 
 # 자동 디바이스 감지
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
+device = "cuda" if torch.cuda.is_available() else "cpu"
 
 # Stanza 한국어 모델 로드
 stanza.download("ko")
@@ -15,7 +15,8 @@ nlp = stanza.Pipeline(
     use_gpu=torch.cuda.is_available(),
     device=device
 )
-print(f"Stanza Using device: {device}")
+device_str = "CUDA" if device == "cuda" else "CPU"
+print(f"stanza_ko Using {device_str}")
 
 
 class TextProcessor:

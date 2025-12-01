@@ -58,7 +58,7 @@ class DataMerger:
                     #     merged_data[-1]["문단"], entry["문단"])
                     merged_data[-1]["문단"] = self.merge_paragraphs(
                         merged_data[-1]["문단"], entry["문단"])
-                    merged_data[-1]["문장"] += (" " + entry["문장"])
+                    merged_data[-1]["문장"] += ("  " + entry["문장"])
                 else:
                     merged_data.append(entry)
 

@@ -44,60 +44,64 @@ class CSVReader:
         extracted_data = []
         total_rows = len(data)
         progress_tracker.progress_bar['maximum'] = total_rows
+        progress_tracker.initialize_tqdm(total_rows, "[4단계 중 1단계] 파일 불러오기 및 큰따옴표 발언 추출 중")
         
         import time
         start_time = time.time()
 
-        for i, row in data.iterrows():
-            sentences = text_processor.split_sentences_by_comma(row['발췌문장'])
+        try:
+            for i, row in data.iterrows():
+                sentences = text_processor.split_sentences_by_comma(row['발췌문장'])
 
-            for sentence in sentences:
-                _, clean_sentence = text_processor.extract_and_clean_quotes(sentence)
-                candidate_speakers = text_processor.merge_tokens(
-                    text_processor.extract_speaker(clean_sentence))
+                for sentence in sentences:
+                    _, clean_sentence = text_processor.extract_and_clean_quotes(sentence)
+                    candidate_speakers = text_processor.merge_tokens(
+                        text_processor.extract_speaker(clean_sentence))
 
-                speakers = []
+                    speakers = []
 
-                # 단문이면 바로 추가
-                if len(sentences) == 1:
-                    add_flag = True
-                else:
-                    # 조사 판별: '은', '는'만 통과
-                    for name in candidate_speakers:
-                        if text_processor.is_valid_speaker_by_josa(name, clean_sentence):
-                            speakers.append(name)
-
-                    # 성이 다른 경우 + 중문일 경우 제거
-                    if speakers:
-                        add_flag = any(speaker.startswith(row['이름'][0]) for speaker in speakers)
-                        for speaker in speakers:
-                            if len(speaker) == 3 and speaker != row['이름']:
-                                add_flag = False
-                        if not add_flag:
-                            continue
+                    # 단문이면 바로 추가
+                    if len(sentences) == 1:
+                        add_flag = True
                     else:
-                        add_flag = True  # 주어 없으면 그대로 추가
+                        # 조사 판별: '은', '는'만 통과
+                        for name in candidate_speakers:
+                            if text_processor.is_valid_speaker_by_josa(name, clean_sentence):
+                                speakers.append(name)
 
-                if not add_flag:
-                    continue
+                        # 성이 다른 경우 + 중문일 경우 제거
+                        if speakers:
+                            add_flag = any(speaker.startswith(row['이름'][0]) for speaker in speakers)
+                            for speaker in speakers:
+                                if len(speaker) == 3 and speaker != row['이름']:
+                                    add_flag = False
+                            if not add_flag:
+                                continue
+                        else:
+                            add_flag = True  # 주어 없으면 그대로 추가
 
-                current_data = {
-                    "날짜": text_processor.to_string(row['일자']),
-                    "발언자 성명 및 직책": text_processor.to_string(row['이름']),
-                    "신문사": text_processor.to_string(row['신문사']),
-                    "기사 제목": text_processor.to_string(row['제목']),
-                    "문단": text_processor.to_string(row['발췌문단']),
-                    "문장": text_processor.to_string(row['발췌문장']),
-                    "큰따옴표 발언": text_processor.extract_quotes(sentence, text_processor.to_string(row['이름']))
-                }
+                    if not add_flag:
+                        continue
 
-                if not any(self.validator.is_empty(v) for v in current_data.values()):
-                    extracted_data.append(current_data)
+                    current_data = {
+                        "날짜": text_processor.to_string(row['일자']),
+                        "발언자 성명 및 직책": text_processor.to_string(row['이름']),
+                        "신문사": text_processor.to_string(row['신문사']),
+                        "기사 제목": text_processor.to_string(row['제목']),
+                        "문단": text_processor.to_string(row['발췌문단']),
+                        "문장": text_processor.to_string(row['발췌문장']),
+                        "큰따옴표 발언": text_processor.extract_quotes(sentence, text_processor.to_string(row['이름']))
+                    }
 
-            progress_tracker.update_progress(
-                i + 1, total_rows, 
-                "[4단계 중 1단계] 파일 불러오기 및 큰따옴표 발언 추출 중", 
-                start_time
-            )
+                    if not any(self.validator.is_empty(v) for v in current_data.values()):
+                        extracted_data.append(current_data)
+
+                progress_tracker.update_progress(
+                    i + 1, total_rows, 
+                    "[4단계 중 1단계] 파일 불러오기 및 큰따옴표 발언 추출 중", 
+                    start_time
+                )
+        finally:
+            progress_tracker.close_tqdm()
 
         return extracted_data

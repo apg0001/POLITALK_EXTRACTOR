@@ -6,51 +6,98 @@ from text_manager import nlp
 import torch
 
 
+# class Summarizer:
+#     """텍스트 요약을 담당하는 클래스
+
+#     T5 기반 한국어 텍스트 요약 모델을 사용하여 긴 텍스트를 요약합니다.
+#     """
+
+#     def __init__(self, model_dir="lcw99/t5-base-korean-text-summary"):
+#         """Summarizer 초기화
+
+#         Args:
+#             model_dir (str): 사용할 T5 모델 경로
+#         """
+#         self.tokenizer = AutoTokenizer.from_pretrained(model_dir)
+
+#         # CUDA 사용 가능 시 GPU에 로드, 아니면 CPU 사용
+#         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+#         self.model = AutoModelForSeq2SeqLM.from_pretrained(model_dir).to(self.device)
+
+#         self.max_input_length = 2048
+
+#         # 디바이스 정보 출력
+#         device_str = "CUDA" if self.device.type == "cuda" else "CPU"
+#         print(f"{model_dir} Using {device_str}")
+
+#     def summarize(self, text, max_length=128):
+#         """텍스트 요약 실행 (가능하면 GPU 사용)"""
+#         inputs = self.tokenizer(
+#             [text],
+#             max_length=self.max_input_length,
+#             truncation=True,
+#             return_tensors="pt",
+#             padding=True,
+#         )
+#         # 토치 텐서를 모델과 같은 디바이스로 이동
+#         inputs = {k: v.to(self.device) for k, v in inputs.items()}
+
+#         output = self.model.generate(
+#             **inputs,
+#             num_beams=16,
+#             do_sample=False,
+#             min_length=1,
+#             max_length=max_length,
+#         )
+#         decoded = self.tokenizer.batch_decode(output, skip_special_tokens=True)[0]
+#         return nltk.sent_tokenize(decoded.strip())[0]
+
+import torch
+from transformers import AutoTokenizer, AutoModelForCausalLM
+import nltk
+
 class Summarizer:
-    """텍스트 요약을 담당하는 클래스
+    """[translate:Kanana] 기반 한국어 요약 클래스"""
 
-    T5 기반 한국어 텍스트 요약 모델을 사용하여 긴 텍스트를 요약합니다.
-    """
-
-    def __init__(self, model_dir="lcw99/t5-base-korean-text-summary"):
-        """Summarizer 초기화
-
-        Args:
-            model_dir (str): 사용할 T5 모델 경로
-        """
-        self.tokenizer = AutoTokenizer.from_pretrained(model_dir)
-
-        # CUDA 사용 가능 시 GPU에 로드, 아니면 CPU 사용
+    def __init__(self, model_name="kakaocorp/kanana-nano-2.1b-instruct"):
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.model = AutoModelForSeq2SeqLM.from_pretrained(model_dir).to(self.device)
+        self.model = AutoModelForCausalLM.from_pretrained(
+            model_name,
+            torch_dtype=torch.float16 if self.device.type == "cuda" else torch.float32
+        ).to(self.device)
 
-        self.max_input_length = 2048
+        print(f"{model_name} Using {self.device}")
 
-        # 디바이스 정보 출력
-        device_str = "CUDA" if self.device.type == "cuda" else "CPU"
-        print(f"{model_dir} Using {device_str}")
+    def summarize(self, text: str, max_new_tokens: int = 128) -> str:
+        prompt = (
+            "[translate:다음 한국어 문단을 한두 문장으로 간결하게 요약해 주세요.]\n\n"
+            f"{text}\n\n"
+            "[translate:요약:]"
+        )
 
-    def summarize(self, text, max_length=128):
-        """텍스트 요약 실행 (가능하면 GPU 사용)"""
         inputs = self.tokenizer(
-            [text],
-            max_length=self.max_input_length,
-            truncation=True,
+            prompt,
             return_tensors="pt",
-            padding=True,
-        )
-        # 토치 텐서를 모델과 같은 디바이스로 이동
-        inputs = {k: v.to(self.device) for k, v in inputs.items()}
+            truncation=True,
+            max_length=2048,
+        ).to(self.device)
 
-        output = self.model.generate(
-            **inputs,
-            num_beams=16,
-            do_sample=False,
-            min_length=1,
-            max_length=max_length,
-        )
-        decoded = self.tokenizer.batch_decode(output, skip_special_tokens=True)[0]
-        return nltk.sent_tokenize(decoded.strip())[0]
+        with torch.no_grad():
+            out = self.model.generate(
+                **inputs,
+                max_new_tokens=max_new_tokens,
+                num_beams=4,
+                do_sample=False,
+                temperature=0.7,
+                pad_token_id=self.tokenizer.eos_token_id,
+            )
+
+        decoded = self.tokenizer.decode(out[0], skip_special_tokens=True)
+        summary = decoded.split("[translate:요약:]")[-1].strip()
+        sentences = nltk.sent_tokenize(summary)
+        return sentences[0] if sentences else summary
+
 
 
 class TextCleaner:

@@ -51,6 +51,7 @@ class ExcelWriter:
 
         total_entries = len(data)
         progress_tracker.progress_bar['maximum'] = total_entries
+        progress_tracker.initialize_tqdm(total_entries, "[4단계 중 4단계] 발언의 배경 추출 및 엑셀 파일 저장 중")
 
         prev_paragraph = None
         prev_title = None
@@ -71,40 +72,43 @@ class ExcelWriter:
         start_time = time.time()
 
         rows = []
-        for i, entry in enumerate(data):
-            if prev_title != entry["기사 제목"]:
-                prev_title = entry["기사 제목"]
+        try:
+            for i, entry in enumerate(data):
+                if prev_title != entry["기사 제목"]:
+                    prev_title = entry["기사 제목"]
 
-            entry["발언의 목적 취지"] = purpose_extractor.extract_purpose(
-                entry["발언자 성명 및 직책"], entry["기사 제목"], entry.get("문장", "").split("  ")[0], entry["문단"]
-            )
-            # entry["발언의 목적 취지"] = ""
+                entry["발언의 목적 취지"] = purpose_extractor.extract_purpose(
+                    entry["발언자 성명 및 직책"], entry["기사 제목"], entry.get("문장", "").split("  ")[0], entry["문단"]
+                )
+                # entry["발언의 목적 취지"] = ""
 
-            if prev_title is not None and prev_paragraph is not None:
-                if prev_title == entry["기사 제목"] and prev_paragraph == entry["문단"]:
-                    pp = prev_paragraph
+                if prev_title is not None and prev_paragraph is not None:
+                    if prev_title == entry["기사 제목"] and prev_paragraph == entry["문단"]:
+                        pp = prev_paragraph
+                    else:
+                        pp = None
                 else:
                     pp = None
-            else:
-                pp = None
 
-            entry["발언의 배경"] = topic_extractor.extract_topic(
-                entry["기사 제목"], entry["문단"], entry["발언의 목적 취지"],
-                entry["큰따옴표 발언"], entry["발언자 성명 및 직책"], pp
-            )
-            # entry["발언의 배경"] = ""
+                entry["발언의 배경"] = topic_extractor.extract_topic(
+                    entry["기사 제목"], entry["문단"], entry["발언의 목적 취지"],
+                    entry["큰따옴표 발언"], entry["발언자 성명 및 직책"], pp
+                )
+                # entry["발언의 배경"] = ""
 
-            row = [entry.get(header, "") for header in workbook_headers]
-            rows.append(row)
+                row = [entry.get(header, "") for header in workbook_headers]
+                rows.append(row)
 
-            prev_title = entry["기사 제목"]
-            prev_paragraph = entry["문단"]
+                prev_title = entry["기사 제목"]
+                prev_paragraph = entry["문단"]
 
-            progress_tracker.update_progress(
-                i + 1, total_entries,
-                "[4단계 중 4단계] 발언의 배경 추출 및 엑셀 파일 저장 중",
-                start_time
-            )
+                progress_tracker.update_progress(
+                    i + 1, total_entries,
+                    "[4단계 중 4단계] 발언의 배경 추출 및 엑셀 파일 저장 중",
+                    start_time
+                )
+        finally:
+            progress_tracker.close_tqdm()
 
         return workbook_headers, rows
 

@@ -34,6 +34,7 @@ class DuplicateRemover:
         duplicate_removed_data = []
         total_entries = len(data)
         progress_tracker.progress_bar['maximum'] = total_entries
+        progress_tracker.initialize_tqdm(total_entries, "[4단계 중 3단계] 중복 제거 중")
 
         import time
         start_time = time.time()
@@ -123,5 +124,7 @@ class DuplicateRemover:
         except Exception as e:
             print(f"중복 제거 중 오류 발생: {e}")
             traceback.print_exc()
+        finally:
+            progress_tracker.close_tqdm()
 
         return duplicate_removed_data

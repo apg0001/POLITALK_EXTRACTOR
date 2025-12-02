@@ -4,6 +4,8 @@ import datetime
 import os
 import sys
 import traceback
+import threading
+import queue
 from file_manager import FileProcessor
 
 
@@ -26,6 +28,11 @@ class CSVExcelConverterGUI:
         self.progress_bar = None
         self.progress_label = None
         self.run_button = None
+        
+        # 스레드 관련 변수
+        self.worker_thread = None
+        self.worker_queue = queue.Queue()
+        self.is_processing = False
         
         # 색상 테마 정의
         self.colors = {
@@ -351,12 +358,6 @@ class CSVExcelConverterGUI:
             self.excel_file_entry.delete(0, tk.END)
             self.excel_file_entry.insert(0, file_path)
 
-    def _reset_gui_error(self):
-        """오류 발생 시 GUI를 초기화하고 재시작"""
-        messagebox.showinfo("재시작", "오류가 발생하여 프로그램을 재시작합니다.")
-        self.root.destroy()
-        self.run_gui()
-        
     def _reset_gui(self):
         """저장 완료 시 GUI를 초기화하고 재시작"""
         messagebox.showinfo("완료", "저장이 완료되어 프로그램을 재시작합니다.")
@@ -364,17 +365,49 @@ class CSVExcelConverterGUI:
         self.run_gui()
 
     def _process_file(self):
-        """CSV 데이터를 Excel로 변환하는 함수"""
+        """CSV 데이터를 Excel로 변환하는 함수 (메인 스레드에서 호출)"""
         try:
-            self.run_button.config(state=tk.DISABLED, text="⏳ 처리 중...")
-            self.run_button.configure(bg=self.colors['text_light'])
-            
             csv_file = self.csv_file_entry.get()
             excel_file = self.excel_file_entry.get()
 
             if not csv_file or not excel_file:
                 raise ValueError("CSV 파일과 Excel 파일을 모두 선택해야 합니다.")
 
+            # 버튼 비활성화 및 상태 변경
+            self.run_button.config(state=tk.DISABLED, text="⏳ 처리 중...")
+            self.run_button.configure(bg=self.colors['text_light'])
+            self.is_processing = True
+            
+            # 진행률 리셋
+            self.progress_bar['value'] = 0
+            self.progress_label.config(text="⏳ 처리를 준비 중입니다...")
+            
+            # 백그라운드 스레드에서 작업 시작
+            self.worker_thread = threading.Thread(
+                target=self._process_file_worker,
+                args=(csv_file, excel_file),
+                daemon=True
+            )
+            self.worker_thread.start()
+            
+            # 스레드 상태 주기적으로 확인
+            self._check_worker_status()
+
+        except ValueError as ve:
+            messagebox.showwarning("입력 오류", str(ve))
+            self.run_button.config(state=tk.NORMAL, text="변환 시작")
+            self.run_button.configure(bg=self.colors['accent'])
+            self.is_processing = False
+        except Exception as e:
+            error_details = traceback.format_exc()
+            messagebox.showerror("오류 발생", f"예상치 못한 오류가 발생했습니다.\n{str(e)}")
+            self.run_button.config(state=tk.NORMAL, text="변환 시작")
+            self.run_button.configure(bg=self.colors['accent'])
+            self.is_processing = False
+
+    def _process_file_worker(self, csv_file, excel_file):
+        """백그라운드 스레드에서 실행될 작업 함수"""
+        try:
             # CSV에서 데이터 추출 및 Excel 저장
             extracted_data = self.file_processor.extract_text_from_csv(csv_file, self.progress_bar, self.progress_label)
             print(f"csv에서 추출된 데이터 수 {len(extracted_data)}")
@@ -389,67 +422,94 @@ class CSVExcelConverterGUI:
             
             # Excel 파일 저장
             self.file_processor.save_data_to_excel(duplicate_removed_data, excel_file, self.progress_bar, self.progress_label)
-
-            # 성공 메시지
-            success_window = tk.Toplevel(self.root)
-            success_window.title("✅ 변환 완료")
-            success_window.geometry("400x300")
-            success_window.configure(bg=self.colors['background'])
-            success_window.resizable(False, False)
             
-            # 중앙 배치
-            success_window.transient(self.root)
-            success_window.grab_set()
-            
-            # 성공 메시지
-            success_label = tk.Label(
-                success_window,
-                text="변환이 완료되었습니다!",
-                font=("맑은 고딕", 16, "bold"),
-                fg=self.colors['success'],
-                bg=self.colors['background']
-            )
-            success_label.pack(pady=20)
-            
-            file_label = tk.Label(
-                success_window,
-                text=f"📁 저장 위치: {excel_file}",
-                font=("맑은 고딕", 10),
-                fg=self.colors['text'],
-                bg=self.colors['background'],
-                wraplength=350
-            )
-            file_label.pack(pady=10)
-            
-            # 확인 버튼
-            ok_button = tk.Button(
-                success_window,
-                text="확인",
-                command=success_window.destroy,
-                font=("맑은 고딕", 12, "bold"),
-                bg=self.colors['primary'],
-                fg='white',
-                relief=tk.FLAT,
-                bd=0,
-                padx=30,
-                pady=10,
-                cursor='hand2'
-            )
-            ok_button.pack(pady=20)
-            
-            # 버튼 상태 복원
-            self.run_button.config(state=tk.NORMAL, text="변환 시작")
-            self.run_button.configure(bg=self.colors['accent'])
-
-        except ValueError as ve:
-            messagebox.showwarning("입력 오류", str(ve))
-            self.run_button.config(state=tk.NORMAL, text="변환 시작")
-            self.run_button.configure(bg=self.colors['accent'])
+            # 성공 상태를 큐에 저장
+            self.worker_queue.put({
+                'status': 'success',
+                'excel_file': excel_file
+            })
         except Exception as e:
-            error_details = traceback.format_exc()
-            messagebox.showerror("오류 발생", f"예상치 못한 오류가 발생했습니다.\n{str(e)}")
-            self.run_button.config(state=tk.NORMAL, text="변환 시작")
-            self.run_button.configure(bg=self.colors['accent'])
+            # 오류 상태를 큐에 저장
+            self.worker_queue.put({
+                'status': 'error',
+                'error': str(e),
+                'traceback': traceback.format_exc()
+            })
+
+    def _check_worker_status(self):
+        """스레드의 작업 상태를 확인하고 UI 업데이트 (메인 스레드에서 주기적으로 호출)"""
+        try:
+            # 큐에서 메시지가 있으면 처리
+            while not self.worker_queue.empty():
+                result = self.worker_queue.get_nowait()
+                
+                if result['status'] == 'success':
+                    # 성공 메시지 표시
+                    success_window = tk.Toplevel(self.root)
+                    success_window.title("✅ 변환 완료")
+                    success_window.geometry("400x300")
+                    success_window.configure(bg=self.colors['background'])
+                    success_window.resizable(False, False)
+                    
+                    # 중앙 배치
+                    success_window.transient(self.root)
+                    success_window.grab_set()
+                    
+                    # 성공 메시지
+                    success_label = tk.Label(
+                        success_window,
+                        text="변환이 완료되었습니다!",
+                        font=("맑은 고딕", 16, "bold"),
+                        fg=self.colors['success'],
+                        bg=self.colors['background']
+                    )
+                    success_label.pack(pady=20)
+                    
+                    file_label = tk.Label(
+                        success_window,
+                        text=f"📁 저장 위치: {result['excel_file']}",
+                        font=("맑은 고딕", 10),
+                        fg=self.colors['text'],
+                        bg=self.colors['background'],
+                        wraplength=350
+                    )
+                    file_label.pack(pady=10)
+                    
+                    # 확인 버튼
+                    ok_button = tk.Button(
+                        success_window,
+                        text="확인",
+                        command=success_window.destroy,
+                        font=("맑은 고딕", 12, "bold"),
+                        bg=self.colors['primary'],
+                        fg='white',
+                        relief=tk.FLAT,
+                        bd=0,
+                        padx=30,
+                        pady=10,
+                        cursor='hand2'
+                    )
+                    ok_button.pack(pady=20)
+                    
+                    # 버튼 상태 복원
+                    self.run_button.config(state=tk.NORMAL, text="변환 시작")
+                    self.run_button.configure(bg=self.colors['accent'])
+                    self.is_processing = False
+                    
+                elif result['status'] == 'error':
+                    # 오류 메시지 표시
+                    messagebox.showerror("오류 발생", f"예상치 못한 오류가 발생했습니다.\n{result['error']}")
+                    
+                    # 버튼 상태 복원
+                    self.run_button.config(state=tk.NORMAL, text="변환 시작")
+                    self.run_button.configure(bg=self.colors['accent'])
+                    self.is_processing = False
+        except queue.Empty:
+            pass
+        
+        # 처리 중이면 주기적으로 다시 확인 (100ms 후)
+        if self.is_processing:
+            self.root.after(100, self._check_worker_status)
 
 
 def run_gui():

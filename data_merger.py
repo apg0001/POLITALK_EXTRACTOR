@@ -31,6 +31,7 @@ class DataMerger:
 
         total_entries = len(data)
         progress_tracker.progress_bar['maximum'] = total_entries
+        progress_tracker.initialize_tqdm(total_entries, "[4단계 중 2단계] 내용 병합 중")
         merged_data = []
 
         import time
@@ -71,6 +72,8 @@ class DataMerger:
         except Exception as e:
             print(f"내용 병합 중 오류 발생: {e}")
             traceback.print_exc()
+        finally:
+            progress_tracker.close_tqdm()
 
         return merged_data
 

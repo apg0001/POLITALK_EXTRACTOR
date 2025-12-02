@@ -1,6 +1,7 @@
 """유틸리티 함수들을 담당하는 모듈"""
 
 import pandas as pd
+from tqdm import tqdm
 
 
 class TimeFormatter:
@@ -58,6 +59,24 @@ class ProgressTracker:
         self.progress_bar = progress_bar
         self.progress_label = progress_label
         self.time_formatter = TimeFormatter()
+        self.tqdm_bar = None
+        self.total = None
+    
+    def initialize_tqdm(self, total, description):
+        """tqdm 프로그레스바 초기화
+        
+        Args:
+            total (int): 전체 항목 수
+            description (str): 프로그레스바 설명
+        """
+        self.total = total
+        self.tqdm_bar = tqdm(total=total, desc=description, unit='item', ncols=100)
+    
+    def close_tqdm(self):
+        """tqdm 프로그레스바 종료"""
+        if self.tqdm_bar is not None:
+            self.tqdm_bar.close()
+            self.tqdm_bar = None
     
     def update_progress(self, current, total, stage, start_time):
         """진행률 업데이트
@@ -82,3 +101,10 @@ class ProgressTracker:
         self.progress_bar['value'] = current
         self.progress_label.config(text=f"{stage}: {current}/{total} - 남은 예상 시간: {formatted_remaining_time}")
         self.progress_bar.update()
+        
+        # tqdm 업데이트
+        if self.tqdm_bar is not None:
+            increment = current - (self.tqdm_bar.n if self.tqdm_bar else 0)
+            if increment > 0:
+                self.tqdm_bar.update(increment)
+                self.tqdm_bar.set_description(f"{stage}: {formatted_remaining_time} 남음")

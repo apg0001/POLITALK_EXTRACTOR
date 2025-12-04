@@ -302,6 +302,8 @@ class TopicExtractor:
 
         removed = self.remover.trim_redundant_block(summary)
         replaced = self.text_cleaner.restore_names_from_original(target_body, removed)
+        if replaced[-1] == "]":
+            replaced = replaced[:-1].strip()
 
         return replaced
 

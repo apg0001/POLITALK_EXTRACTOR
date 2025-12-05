@@ -71,7 +71,7 @@ class Summarizer:
 
     def summarize(self, text: str, max_new_tokens: int = 128) -> str:
         prompt = (
-            "[translate:다음 한국어 문단을 한두 문장으로 간결하게 요약하고 요약문만 텍스트로 주세요.]\n\n"
+            "[translate:다음 한국어 문단을 한두 문장으로 간결하게 요약하고 요약문만 텍스트로 주세요. 특정 방송사, 특정 프로그램, 특정 언론사에 관한 내용은 언급하지 마세요.]\n\n"
             f"{text}\n\n"
             "[translate:요약:]"
         )

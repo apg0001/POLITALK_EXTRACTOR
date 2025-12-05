@@ -187,6 +187,60 @@ class PurposeExtractor:
 
         return text
 
+    def _filter_text_for_speaker(self, text, name):
+        """쉼표 등으로 분절 후, (1) 입력된 이름(전체) 또는 성+직책이 name과 일치하는 분절, (2) 발언자 패턴이 전혀 없는 분절(설명문)만 남기고 나머지는 삭제"""
+        if not name or not text:
+            return text
+
+        text = text.strip()
+        try:
+            segments = re.split(r'[，,;；·]\s*', text)
+        except Exception:
+            segments = [text]
+
+        surname = name[0]
+        position_keywords = ["의원", "대표", "장관", "위원장", "차관", "국장", "총장", "전"]
+        pos_rx = r'(?:' + '|'.join(map(re.escape, position_keywords)) + r')'
+
+        def is_target_segment(seg):
+            # 전체 이름이 정확히 포함
+            if name in seg:
+                return True
+            # 성+직책 패턴이 정확히 포함
+            if re.search(rf'{re.escape(name)}\s*{pos_rx}', seg):
+                return True
+            if re.search(rf'{re.escape(surname)}[가-힣]{{1,2}}\s*{pos_rx}', seg):
+                # 예: 윤 의원, 윤건영 의원 등
+                return True
+            return False
+
+        def has_any_speaker_pattern(seg):
+            # 전체 이름 또는 성+직책 패턴이 있으면 True
+            if name in seg:
+                return True
+            if re.search(rf'{re.escape(name)}\s*{pos_rx}', seg):
+                return True
+            if re.search(rf'{re.escape(surname)}[가-힣]{{1,2}}\s*{pos_rx}', seg):
+                return True
+            return False
+
+        result_segments = []
+        for seg in segments:
+            seg = seg.strip()
+            if not seg:
+                continue
+            if is_target_segment(seg):
+                result_segments.append(seg)
+            elif not has_any_speaker_pattern(seg):
+                # 발언자 패턴이 전혀 없는 일반 설명문도 남김
+                result_segments.append(seg)
+            # else: 다른 사람 발언자 패턴이 있는 분절은 삭제
+
+        # 만약 아무것도 남지 않으면 원본 반환(방어적)
+        if not result_segments:
+            return text
+        return ' '.join(result_segments)
+
     def extract_purpose(self, name=None, title=None, body1=None, body2=None, prev=None):
         """발언의 목적/배경/취지 추출 메인 함수
         
@@ -201,7 +255,12 @@ class PurposeExtractor:
             str: 추출된 발언의 목적/배경/취지
         """
         cleaned_text = self.remove_quotes(body1)
-        restored_speaker_text = self.restore_speaker(cleaned_text, name)
+
+        # 다수 발언자가 한 문장에 있는 경우, 먼저 해당 발언자(name)에 해당하는 분절만 남긴다.
+        filtered_text = self._filter_text_for_speaker(cleaned_text, name)
+
+        # 발언자 관련 불필요한 앞뒤 문구 제거
+        restored_speaker_text = self.restore_speaker(filtered_text, name)
         adjusted_text = self.adjust_particles_and_endings(restored_speaker_text)
         excluded_text = self.exclude_conjunctions(adjusted_text)
         cleaned = self.media_cleaner.clean(excluded_text)
@@ -222,20 +281,35 @@ class MediaMentionCleaner:
             "MBC", "KBS", "SBS", "JTBC", "채널A", "TV조선", "연합뉴스", "CBS"
         ]
         self.programs = [
-            "김현정의 뉴스쇼", "배성규의 정치펀치", "조선일보 유튜브"
+            "김현정의 뉴스쇼", "배성규의 정치펀치", "조선일보 유튜브" "김종배의 시선집중"
         ]
 
+        # 좀 더 포괄적으로 언론/프로그램 + 동사(출연/통화/인터뷰 등)를 제거하도록 패턴 확장
+        prog = '|'.join(map(re.escape, self.programs))
+        medias = '|'.join(map(re.escape, self.media_names))
         self.patterns = [
-            rf"['\"]?\s*({'|'.join(self.programs)})\s*['\"]?\s*(인터뷰|출연)?\s*(에서|에)?",
-            rf"({'|'.join(self.media_names)})\s*(유튜브)?\s*([와과]의|[와과]|의)?\s*[\w\s]*?(통화|인터뷰|라디오|방송|만남|출연|강조|만난)?\s*(에서|에|당시)?",
-            rf"({'|'.join(self.media_names)})"
+            rf"['\"]?\s*(?:{prog})\s*['\"]?\s*(?:인터뷰|출연|통화)?\s*(?:에서|에)?",
+            rf"(?:{medias})\s*(?:라디오|TV|유튜브)?\s*(?:에서|에)?\s*(?:출연해|출연했다|출연하여|출연|통화|인터뷰|방송)?",
+            rf"(?:{medias})"
         ]
 
     def clean(self, text):
         """언론사 및 방송 프로그램 언급 제거"""
+        # 대소문자 구분 없이 제거
         for pattern in self.patterns:
-            text = re.sub(pattern, "", text)
-        
+            try:
+                text = re.sub(pattern, "", text, flags=re.IGNORECASE)
+            except re.error:
+                # 안전성: 잘못된 정규식이면 건너뜀
+                continue
+
+        # 추가적으로 '...에 출연해'와 같은 동사구를 남아있다면 제거
+        try:
+            text = re.sub(r'\b(출연해|출연했다|출연하여|출연|통화했다|인터뷰했다|출연하여)\b', '', text, flags=re.IGNORECASE)
+        except re.error:
+            pass
+
+        # 문법적으로 불필요한 조사나 전치 표현 정리
         text = re.sub(r"\s+(에서|에|와의|와|의)\s+", " ", text)
         text = re.sub(r"\s{2,}", " ", text)
         return text.strip()

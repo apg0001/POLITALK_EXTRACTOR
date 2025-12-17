@@ -190,36 +190,65 @@ class RedundancyRemover:
         return [word.lemma.split('+')[0] for sent in doc.sentences for word in sent.words]
 
     def trim_redundant_block(self, text):
-        """중복 구간 제거"""
+        """텍스트 내 중복 구간 제거
+        
+        텍스트를 토큰화하고 원형화(lemmatize)한 후, 
+        같은 원형이 반복되는 구간을 찾아 제거합니다.
+        
+        예: "그는 말했다. 그는 말했다." -> "그는 말했다."
+        
+        Args:
+            text (str): 중복을 제거할 텍스트
+            
+        Returns:
+            str: 중복 구간이 제거된 텍스트
+        """
+        # 텍스트를 토큰과 원형으로 변환
         tokens = self.tokenize(text)
         lemmas = self.lemmatize(text)
 
-        lemma_map = defaultdict(list)
+        # 각 원형(lemma)이 나타나는 위치를 인덱스로 저장
+        # 예: {'말하다': [0, 3], '그': [1, 4], ...}
+        lemma_to_indices = defaultdict(list)
         for idx, lemma in enumerate(lemmas):
-            lemma_map[lemma].append(idx)
+            lemma_to_indices[lemma].append(idx)
 
-        max_start, max_end = -1, -1
-        max_len = 0
+        # 가장 긴 중복 구간의 시작과 끝 위치
+        best_redundant_start = -1
+        best_redundant_end = -1
+        best_redundant_length = 0
 
-        for lemma, indices in lemma_map.items():
-            if len(indices) < 2:
+        # 각 원형이 2번 이상 나타나는 경우, 중복 구간 찾기
+        for lemma, occurrence_indices in lemma_to_indices.items():
+            # 같은 원형이 2번 미만이면 스킵
+            if len(occurrence_indices) < 2:
                 continue
-            for i in range(len(indices)):
-                for j in range(i + 1, len(indices)):
-                    start1, start2 = indices[i], indices[j]
-                    length = 0
-                    while (start1 + length < start2 and
-                           start2 + length < len(lemmas) and
-                           lemmas[start1 + length] == lemmas[start2 + length]):
-                        length += 1
-                    if length >= self.min_common_len and length > max_len:
-                        max_len = length
-                        max_start = start1
-                        max_end = start1 + length
+            
+            # 모든 원형 출현 위치 쌍을 비교
+            for first_idx in range(len(occurrence_indices)):
+                for second_idx in range(first_idx + 1, len(occurrence_indices)):
+                    first_position = occurrence_indices[first_idx]
+                    second_position = occurrence_indices[second_idx]
+                    
+                    # 두 위치에서 시작하는 구간이 얼마나 일치하는지 확인
+                    matching_length = 0
+                    while (first_position + matching_length < second_position and
+                           second_position + matching_length < len(lemmas) and
+                           lemmas[first_position + matching_length] == lemmas[second_position + matching_length]):
+                        matching_length += 1
+                    
+                    # 최소 길이 이상이고, 지금까지 찾은 최장 구간보다 길면 업데이트
+                    if matching_length >= self.min_common_len and matching_length > best_redundant_length:
+                        best_redundant_length = matching_length
+                        best_redundant_start = first_position
+                        best_redundant_end = first_position + matching_length
 
-        if max_len >= self.min_common_len:
-            new_tokens = tokens[:max_start] + tokens[max_end:]
-            return ' '.join(new_tokens).replace(" .", ".")
+        # 중복 구간이 발견되면 제거
+        if best_redundant_length >= self.min_common_len:
+            # 중복 구간을 제외한 토큰들만 남기기
+            tokens_without_redundant = tokens[:best_redundant_start] + tokens[best_redundant_end:]
+            cleaned_text = ' '.join(tokens_without_redundant).replace(" .", ".")
+            return cleaned_text
 
         return text
 

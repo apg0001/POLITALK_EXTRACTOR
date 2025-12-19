@@ -44,9 +44,13 @@ class ExcelWriter:
         Returns:
             (tuple): (headers: list[str], rows: list[list])
         """
+        # workbook_headers = [
+        #     "날짜", "발언자 성명 및 직책", "신문사", "기사 제목",
+        #     "발언의 배경", "문단", "발언의 목적 취지", "문장", "큰따옴표 발언",
+        # ]
         workbook_headers = [
             "날짜", "발언자 성명 및 직책", "신문사", "기사 제목",
-            "발언의 배경", "문단", "발언의 목적 취지", "문장", "큰따옴표 발언",
+            "문단", "문장", "큰따옴표 발언", "URL"
         ]
 
         total_entries = len(data)
@@ -77,9 +81,9 @@ class ExcelWriter:
                 if prev_title != entry["기사 제목"]:
                     prev_title = entry["기사 제목"]
 
-                entry["발언의 목적 취지"] = purpose_extractor.extract_purpose(
-                    entry["발언자 성명 및 직책"], entry["기사 제목"], entry.get("문장", "").split("  ")[0], entry["문단"]
-                )
+                # entry["발언의 목적 취지"] = purpose_extractor.extract_purpose(
+                #     entry["발언자 성명 및 직책"], entry["기사 제목"], entry.get("문장", "").split("  ")[0], entry["문단"]
+                # )
                 # entry["발언의 목적 취지"] = ""
 
                 if prev_title is not None and prev_paragraph is not None:
@@ -90,10 +94,10 @@ class ExcelWriter:
                 else:
                     pp = None
 
-                entry["발언의 배경"] = topic_extractor.extract_topic(
-                    entry["기사 제목"], entry["문단"], entry["발언의 목적 취지"],
-                    entry["큰따옴표 발언"], entry["발언자 성명 및 직책"], pp
-                )
+                # entry["발언의 배경"] = topic_extractor.extract_topic(
+                #     entry["기사 제목"], entry["문단"], entry["발언의 목적 취지"],
+                #     entry["큰따옴표 발언"], entry["발언자 성명 및 직책"], pp
+                # )
                 # entry["발언의 배경"] = ""
 
                 row = [entry.get(header, "") for header in workbook_headers]

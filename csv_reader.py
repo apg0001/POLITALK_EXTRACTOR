@@ -90,7 +90,8 @@ class CSVReader:
                         "기사 제목": text_processor.to_string(row['제목']),
                         "문단": text_processor.to_string(row['발췌문단']),
                         "문장": text_processor.to_string(row['발췌문장']),
-                        "큰따옴표 발언": text_processor.extract_quotes(sentence, text_processor.to_string(row['이름']))
+                        "큰따옴표 발언": text_processor.extract_quotes(sentence, text_processor.to_string(row['이름'])),
+                        "URL": text_processor.to_string(row['URL'])
                     }
 
                     if not any(self.validator.is_empty(v) for v in current_data.values()):

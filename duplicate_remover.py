@@ -255,14 +255,33 @@ class DuplicateRemover:
                         # 이전 엔트리의 각 문장과 비교
                         for prev_idx, previous_quote in enumerate(previous_quotes):
                             # 1순위: 룰 3 - 부분 포함 체크 (최우선)
-                            if self._is_subset(current_quote, previous_quote):
-                                # current ⊂ previous → current 제거
-                                is_duplicate = True
-                                break
-                            elif self._is_subset(previous_quote, current_quote):
-                                # previous ⊂ current → previous 제거
-                                remove_previous_indices.append(prev_idx)
-                                continue
+                            # 부분 포함 관계가 있을 때는 항상 긴 문장을 유지
+                            is_current_subset = self._is_subset(current_quote, previous_quote)
+                            is_previous_subset = self._is_subset(previous_quote, current_quote)
+                            
+                            if is_current_subset or is_previous_subset:
+                                # 부분 포함 관계가 있는 경우, 문장 길이 비교
+                                len_current = len(current_quote)
+                                len_previous = len(previous_quote)
+                                
+                                if len_current < len_previous:
+                                    # current가 짧음 → current 제거 (긴 문장인 previous 유지)
+                                    is_duplicate = True
+                                    break
+                                elif len_current > len_previous:
+                                    # previous가 짧음 → previous 제거 (긴 문장인 current 유지)
+                                    remove_previous_indices.append(prev_idx)
+                                    continue
+                                else:
+                                    # 길이가 같으면 부분 포함 관계에 따라 판단
+                                    if is_current_subset:
+                                        # current ⊂ previous → current 제거
+                                        is_duplicate = True
+                                        break
+                                    elif is_previous_subset:
+                                        # previous ⊂ current → previous 제거
+                                        remove_previous_indices.append(prev_idx)
+                                        continue
                             
                             # 2순위: 룰 1 - 70% 이상 유사도 체크
                             elif self._are_similar(current_quote, previous_quote, 0.7):

@@ -90,8 +90,58 @@ class DuplicateRemover:
         similarity = self._calculate_similarity(quote1, quote2)
         return similarity >= threshold
     
+    def _are_quotes_identical(self, quotes1, quotes2, similarity_threshold=0.7):
+        """두 엔트리의 모든 문장이 유사도 기준으로 일치하는지 확인
+        
+        전체 엔트리 제거를 위한 체크: 두 엔트리의 모든 문장이 70% 이상 유사하면 True
+        각 문장은 다른 엔트리의 문장 중 하나와 매칭되어야 함 (순서 무관)
+        
+        Args:
+            quotes1 (list): 첫 번째 엔트리의 문장 리스트
+            quotes2 (list): 두 번째 엔트리의 문장 리스트
+            similarity_threshold (float): 유사도 임계값 (기본값 0.7)
+            
+        Returns:
+            bool: 모든 문장이 유사도 기준으로 일치하면 True
+        """
+        if len(quotes1) != len(quotes2):
+            return False
+        
+        if len(quotes1) == 0:
+            return True
+        
+        # quotes2의 사용 가능한 인덱스 (매칭되지 않은 문장들)
+        available_indices = set(range(len(quotes2)))
+        
+        # quotes1의 각 문장에 대해 quotes2에서 가장 유사한 문장 찾기
+        for quote1 in quotes1:
+            best_match_idx = None
+            best_similarity = 0.0
+            
+            # 사용 가능한 quotes2 문장 중 가장 유사한 것 찾기
+            for idx in available_indices:
+                quote2 = quotes2[idx]
+                similarity = self._calculate_similarity(quote1, quote2)
+                
+                if similarity > best_similarity:
+                    best_similarity = similarity
+                    best_match_idx = idx
+            
+            # 유사도가 임계값 이상이고 매칭된 경우
+            if best_similarity >= similarity_threshold and best_match_idx is not None:
+                # 매칭된 인덱스를 사용 불가능한 목록에서 제거
+                available_indices.remove(best_match_idx)
+            else:
+                # 매칭 실패 → 전체 엔트리가 일치하지 않음
+                return False
+        
+        # 모든 문장이 매칭되었는지 확인 (available_indices가 비어있어야 함)
+        return len(available_indices) == 0
+    
     def _get_removal_target(self, count1, count2):
         """룰 2: 개수 기반 우선순위 결정
+        
+        단일 문장 우선 제거: 단일 문장인 행은 복수 문장을 가진 행보다 우선 제거 대상
         
         Args:
             count1 (int): 첫 번째 행의 큰따옴표 문장 개수
@@ -100,6 +150,13 @@ class DuplicateRemover:
         Returns:
             str or None: 'current' (count1에서 제거), 'previous' (count2에서 제거), None (우선순위 없음)
         """
+        # 단일 문장 우선 제거: 단일 문장인 행을 우선 제거
+        if count1 == 1 and count2 > 1:
+            return 'current'  # current가 단일 문장 → current 제거
+        elif count1 > 1 and count2 == 1:
+            return 'previous'  # previous가 단일 문장 → previous 제거
+        
+        # 둘 다 단일 문장이거나 둘 다 복수 문장인 경우, 개수 비교
         if count1 < count2:
             return 'current'  # 개수가 적은 쪽(current)에서 제거
         elif count1 > count2:
@@ -151,11 +208,42 @@ class DuplicateRemover:
 
                 # 이전 엔트리들과 비교하여 중복 제거
                 previous_entry_idx = 0
+                entry_removed = False  # 현재 엔트리가 전체 제거되었는지 여부
+                
                 while previous_entry_idx < len(previous_entries_cache):
                     previous_entry = deduplicated_result[previous_entry_idx]
                     previous_cache = previous_entries_cache[previous_entry_idx]
                     
                     previous_quotes = previous_cache['original']
+                    
+                    # 전체 엔트리 중복 체크: 두 엔트리의 모든 문장이 일치하면 한 엔트리 전체 제거
+                    if self._are_quotes_identical(current_quotes, previous_quotes):
+                        # 단일 문장 우선 제거: 단일 문장인 엔트리를 우선 제거
+                        if len(current_quotes) == 1 and len(previous_quotes) > 1:
+                            # current가 단일 문장 → current 전체 제거
+                            entry_removed = True
+                            break
+                        elif len(current_quotes) > 1 and len(previous_quotes) == 1:
+                            # previous가 단일 문장 → previous 전체 제거
+                            del deduplicated_result[previous_entry_idx]
+                            del previous_entries_cache[previous_entry_idx]
+                            previous_entry_idx -= 1
+                            continue
+                        else:
+                            # 둘 다 단일이거나 둘 다 복수 → 개수가 적은 쪽 제거
+                            if len(current_quotes) < len(previous_quotes):
+                                entry_removed = True
+                                break
+                            elif len(current_quotes) > len(previous_quotes):
+                                del deduplicated_result[previous_entry_idx]
+                                del previous_entries_cache[previous_entry_idx]
+                                previous_entry_idx -= 1
+                                continue
+                            else:
+                                # 개수도 같음 → current 제거 (기본)
+                                entry_removed = True
+                                break
+                    
                     current_quote_idx = 0
                     
                     # 현재 엔트리의 각 문장을 이전 엔트리와 비교
@@ -236,6 +324,16 @@ class DuplicateRemover:
                             current_quote_idx += 1
                     
                     previous_entry_idx += 1
+
+                # 전체 엔트리가 제거된 경우 스킵
+                if entry_removed:
+                    # 진행률 업데이트
+                    progress_tracker.update_progress(
+                        current_idx + 1, total_entries,
+                        "[4단계 중 3단계] 중복 제거 중",
+                        start_time
+                    )
+                    continue
 
                 # 중복 제거 후 남은 문장이 있으면 결과에 추가
                 if current_quotes:

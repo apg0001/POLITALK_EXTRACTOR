@@ -48,16 +48,33 @@ class DuplicateRemover:
     def _is_subset(self, quote_a, quote_b):
         """룰 3: A가 B의 부분집합인지 확인 (A ⊂ B)
         
+        부분 포함 체크: A가 B에 완전히 포함되면서 A != B인 경우
+        예: C = "안녕하세요", C' = "안녕하세요 반갑습니다" → C ⊂ C'
+        
         Args:
-            quote_a (str): 첫 번째 발언
-            quote_b (str): 두 번째 발언
+            quote_a (str): 첫 번째 발언 (짧은 쪽)
+            quote_b (str): 두 번째 발언 (긴 쪽)
             
         Returns:
             bool: quote_a가 quote_b의 부분집합이면 True
         """
         norm_a = self._normalize_quote(quote_a)
         norm_b = self._normalize_quote(quote_b)
-        return norm_a in norm_b and norm_a != norm_b
+        
+        # A가 B에 완전히 포함되면서 A != B인 경우
+        # 단순 문자열 포함 체크로는 부족할 수 있으므로 단어 단위로도 확인
+        if norm_a in norm_b and norm_a != norm_b:
+            return True
+        
+        # 단어 단위 부분 집합 체크 (더 정확한 판단)
+        words_a = set(norm_a.split())
+        words_b = set(norm_b.split())
+        
+        if words_a and words_b:
+            # A의 모든 단어가 B에 포함되고, A의 단어 수가 B보다 적으면 부분집합
+            return words_a.issubset(words_b) and len(words_a) < len(words_b)
+        
+        return False
     
     def _are_similar(self, quote1, quote2, threshold=0.7):
         """룰 1: 두 발언이 70% 이상 유사한지 확인
@@ -161,6 +178,11 @@ class DuplicateRemover:
                             
                             # 2순위: 룰 1 - 70% 이상 유사도 체크
                             elif self._are_similar(current_quote, previous_quote, 0.7):
+                                # 유사도가 높은 경우, 길이도 고려
+                                # 긴 쪽을 유지하고 짧은 쪽을 제거 (부분 포함과 유사한 원리)
+                                len_current = len(current_quote)
+                                len_previous = len(previous_quote)
+                                
                                 # 룰 2: 개수 기반 우선순위 적용
                                 removal_target = self._get_removal_target(
                                     len(current_quotes),
@@ -168,17 +190,27 @@ class DuplicateRemover:
                                 )
                                 
                                 if removal_target == 'current':
-                                    # current에서 제거
+                                    # current에서 제거 (개수가 적음)
                                     is_duplicate = True
                                     break
                                 elif removal_target == 'previous':
-                                    # previous에서 제거
+                                    # previous에서 제거 (개수가 적음)
                                     remove_previous_indices.append(prev_idx)
                                     continue
                                 else:
-                                    # 우선순위 없음 → current 제거 (기본)
-                                    is_duplicate = True
-                                    break
+                                    # 개수 같음 → 길이 기준으로 판단 (긴 쪽 유지, 짧은 쪽 제거)
+                                    if len_current < len_previous:
+                                        # current가 짧음 → current 제거
+                                        is_duplicate = True
+                                        break
+                                    elif len_current > len_previous:
+                                        # previous가 짧음 → previous 제거
+                                        remove_previous_indices.append(prev_idx)
+                                        continue
+                                    else:
+                                        # 길이도 같음 → current 제거 (기본)
+                                        is_duplicate = True
+                                        break
                         
                         # 이전 엔트리에서 제거할 문장들 처리 (역순으로 제거)
                         if remove_previous_indices:

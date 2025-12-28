@@ -138,7 +138,7 @@ class DuplicateRemover:
         # 모든 문장이 매칭되었는지 확인 (available_indices가 비어있어야 함)
         return len(available_indices) == 0
     
-    def _get_removal_target(self, count1, count2):
+    def _get_removal_target(self, count1, count2, is_similar_only=False):
         """룰 2: 개수 기반 우선순위 결정
         
         단일 문장 우선 제거: 단일 문장인 행은 복수 문장을 가진 행보다 우선 제거 대상
@@ -146,6 +146,7 @@ class DuplicateRemover:
         Args:
             count1 (int): 첫 번째 행의 큰따옴표 문장 개수
             count2 (int): 두 번째 행의 큰따옴표 문장 개수
+            is_similar_only (bool): 유사도만 체크한 경우 (부분 포함이 아닌 경우) True
             
         Returns:
             str or None: 'current' (count1에서 제거), 'previous' (count2에서 제거), None (우선순위 없음)
@@ -156,7 +157,14 @@ class DuplicateRemover:
         elif count1 > 1 and count2 == 1:
             return 'previous'  # previous가 단일 문장 → previous 제거
         
-        # 둘 다 단일 문장이거나 둘 다 복수 문장인 경우, 개수 비교
+        # 둘 다 단일 문장이거나 둘 다 복수 문장인 경우
+        # 유사도만 체크한 경우 (부분 포함이 아닌 경우)는 문장 단위로 판단
+        if is_similar_only:
+            # 같은 엔트리 내의 여러 문장이 각각 다른 행과 중복되는 경우를 처리
+            # 개수가 같거나 비슷하면 문장 단위로 판단 (길이 기준)
+            return None  # 문장 단위로 판단하도록 None 반환
+        
+        # 부분 포함 관계가 있는 경우는 개수 비교
         if count1 < count2:
             return 'current'  # 개수가 적은 쪽(current)에서 제거
         elif count1 > count2:
@@ -244,97 +252,124 @@ class DuplicateRemover:
                                 entry_removed = True
                                 break
                     
+                    # 현재 엔트리의 각 문장을 모든 이전 엔트리와 비교
+                    # 같은 엔트리 내의 여러 문장이 각각 다른 행과 중복되는 경우를 처리하기 위해
+                    # 각 문장을 모든 이전 엔트리와 비교한 후 제거 결정
                     current_quote_idx = 0
                     
-                    # 현재 엔트리의 각 문장을 이전 엔트리와 비교
                     while current_quote_idx < len(current_quotes):
                         current_quote = current_quotes[current_quote_idx]
                         is_duplicate = False
-                        remove_previous_indices = []
+                        remove_previous_indices_map = {}  # {previous_entry_idx: [prev_idx, ...]}
                         
-                        # 이전 엔트리의 각 문장과 비교
-                        for prev_idx, previous_quote in enumerate(previous_quotes):
-                            # 1순위: 룰 3 - 부분 포함 체크 (최우선)
-                            # 부분 포함 관계가 있을 때는 항상 긴 문장을 유지
-                            is_current_subset = self._is_subset(current_quote, previous_quote)
-                            is_previous_subset = self._is_subset(previous_quote, current_quote)
+                        # 모든 이전 엔트리와 비교 (같은 문장이 여러 이전 엔트리와 중복될 수 있음)
+                        temp_previous_entry_idx = 0
+                        while temp_previous_entry_idx < len(previous_entries_cache):
+                            temp_previous_entry = deduplicated_result[temp_previous_entry_idx]
+                            temp_previous_cache = previous_entries_cache[temp_previous_entry_idx]
+                            temp_previous_quotes = temp_previous_cache['original']
+                            temp_remove_previous_indices = []
                             
-                            if is_current_subset or is_previous_subset:
-                                # 부분 포함 관계가 있는 경우, 문장 길이 비교
-                                len_current = len(current_quote)
-                                len_previous = len(previous_quote)
+                            # 이전 엔트리의 각 문장과 비교
+                            for prev_idx, previous_quote in enumerate(temp_previous_quotes):
+                                # 1순위: 룰 3 - 부분 포함 체크 (최우선)
+                                # 부분 포함 관계가 있을 때는 항상 긴 문장을 유지
+                                is_current_subset = self._is_subset(current_quote, previous_quote)
+                                is_previous_subset = self._is_subset(previous_quote, current_quote)
                                 
-                                if len_current < len_previous:
-                                    # current가 짧음 → current 제거 (긴 문장인 previous 유지)
-                                    is_duplicate = True
-                                    break
-                                elif len_current > len_previous:
-                                    # previous가 짧음 → previous 제거 (긴 문장인 current 유지)
-                                    remove_previous_indices.append(prev_idx)
-                                    continue
-                                else:
-                                    # 길이가 같으면 부분 포함 관계에 따라 판단
-                                    if is_current_subset:
-                                        # current ⊂ previous → current 제거
-                                        is_duplicate = True
-                                        break
-                                    elif is_previous_subset:
-                                        # previous ⊂ current → previous 제거
-                                        remove_previous_indices.append(prev_idx)
-                                        continue
-                            
-                            # 2순위: 룰 1 - 70% 이상 유사도 체크
-                            elif self._are_similar(current_quote, previous_quote, 0.7):
-                                # 유사도가 높은 경우, 길이도 고려
-                                # 긴 쪽을 유지하고 짧은 쪽을 제거 (부분 포함과 유사한 원리)
-                                len_current = len(current_quote)
-                                len_previous = len(previous_quote)
-                                
-                                # 룰 2: 개수 기반 우선순위 적용
-                                removal_target = self._get_removal_target(
-                                    len(current_quotes),
-                                    len(previous_quotes)
-                                )
-                                
-                                if removal_target == 'current':
-                                    # current에서 제거 (개수가 적음)
-                                    is_duplicate = True
-                                    break
-                                elif removal_target == 'previous':
-                                    # previous에서 제거 (개수가 적음)
-                                    remove_previous_indices.append(prev_idx)
-                                    continue
-                                else:
-                                    # 개수 같음 → 길이 기준으로 판단 (긴 쪽 유지, 짧은 쪽 제거)
+                                if is_current_subset or is_previous_subset:
+                                    # 부분 포함 관계가 있는 경우, 문장 길이 비교
+                                    len_current = len(current_quote)
+                                    len_previous = len(previous_quote)
+                                    
                                     if len_current < len_previous:
-                                        # current가 짧음 → current 제거
+                                        # current가 짧음 → current 제거 (긴 문장인 previous 유지)
                                         is_duplicate = True
                                         break
                                     elif len_current > len_previous:
-                                        # previous가 짧음 → previous 제거
-                                        remove_previous_indices.append(prev_idx)
+                                        # previous가 짧음 → previous 제거 (긴 문장인 current 유지)
+                                        temp_remove_previous_indices.append(prev_idx)
                                         continue
                                     else:
-                                        # 길이도 같음 → current 제거 (기본)
+                                        # 길이가 같으면 부분 포함 관계에 따라 판단
+                                        if is_current_subset:
+                                            # current ⊂ previous → current 제거
+                                            is_duplicate = True
+                                            break
+                                        elif is_previous_subset:
+                                            # previous ⊂ current → previous 제거
+                                            temp_remove_previous_indices.append(prev_idx)
+                                            continue
+                                
+                                # 2순위: 룰 1 - 70% 이상 유사도 체크
+                                elif self._are_similar(current_quote, previous_quote, 0.7):
+                                    # 유사도가 높은 경우, 문장 단위로 비교
+                                    # 같은 엔트리 내의 여러 문장이 각각 다른 행과 중복되는 경우를 처리
+                                    len_current = len(current_quote)
+                                    len_previous = len(previous_quote)
+                                    
+                                    # 룰 2: 개수 기반 우선순위 적용
+                                    # 유사도만 체크한 경우는 문장 단위로 판단
+                                    removal_target = self._get_removal_target(
+                                        len(current_quotes),
+                                        len(temp_previous_quotes),
+                                        is_similar_only=True
+                                    )
+                                    
+                                    # 개수 기반 우선순위가 명확한 경우
+                                    if removal_target == 'current':
+                                        # current 엔트리가 단일 문장이거나 개수가 적음 → current 문장 제거
                                         is_duplicate = True
                                         break
-                        
-                        # 이전 엔트리에서 제거할 문장들 처리 (역순으로 제거)
-                        if remove_previous_indices:
-                            for idx in sorted(remove_previous_indices, reverse=True):
-                                previous_quotes.pop(idx)
+                                    elif removal_target == 'previous':
+                                        # previous 엔트리가 단일 문장이거나 개수가 적음 → previous 문장 제거
+                                        temp_remove_previous_indices.append(prev_idx)
+                                        continue
+                                    else:
+                                        # 개수 같거나 비슷함 → 길이 기준으로 판단 (긴 쪽 유지, 짧은 쪽 제거)
+                                        # 또는 문장 단위 비교 (같은 엔트리 내의 여러 문장이 각각 다른 행과 중복)
+                                        if len_current < len_previous:
+                                            # current가 짧음 → current 제거
+                                            is_duplicate = True
+                                            break
+                                        elif len_current > len_previous:
+                                            # previous가 짧음 → previous 제거
+                                            temp_remove_previous_indices.append(prev_idx)
+                                            continue
+                                        else:
+                                            # 길이도 같음 → current 제거 (기본)
+                                            is_duplicate = True
+                                            break
                             
-                            # 이전 엔트리 업데이트
-                            if previous_quotes:
-                                previous_entry["큰따옴표 발언"] = "  ".join(previous_quotes)
-                                previous_cache['original'] = previous_quotes
-                                previous_cache['normalized'] = [self._normalize_quote(q) for q in previous_quotes]
-                            else:
-                                # 이전 엔트리의 모든 문장이 제거되면 엔트리 자체 삭제
-                                del deduplicated_result[previous_entry_idx]
-                                del previous_entries_cache[previous_entry_idx]
-                                previous_entry_idx -= 1
+                            # 이전 엔트리에서 제거할 문장들 기록
+                            if temp_remove_previous_indices:
+                                remove_previous_indices_map[temp_previous_entry_idx] = temp_remove_previous_indices
+                            
+                            # 중복이 발견되면 더 이상 비교하지 않음
+                            if is_duplicate:
                                 break
+                            
+                            temp_previous_entry_idx += 1
+                        
+                        # 이전 엔트리들에서 제거할 문장들 처리 (역순으로 제거)
+                        if remove_previous_indices_map:
+                            # 역순으로 처리 (인덱스 변경 방지)
+                            for prev_entry_idx in sorted(remove_previous_indices_map.keys(), reverse=True):
+                                prev_quotes = previous_entries_cache[prev_entry_idx]['original']
+                                prev_entry = deduplicated_result[prev_entry_idx]
+                                
+                                for idx in sorted(remove_previous_indices_map[prev_entry_idx], reverse=True):
+                                    prev_quotes.pop(idx)
+                                
+                                # 이전 엔트리 업데이트
+                                if prev_quotes:
+                                    prev_entry["큰따옴표 발언"] = "  ".join(prev_quotes)
+                                    previous_entries_cache[prev_entry_idx]['original'] = prev_quotes
+                                    previous_entries_cache[prev_entry_idx]['normalized'] = [self._normalize_quote(q) for q in prev_quotes]
+                                else:
+                                    # 이전 엔트리의 모든 문장이 제거되면 엔트리 자체 삭제
+                                    del deduplicated_result[prev_entry_idx]
+                                    del previous_entries_cache[prev_entry_idx]
                         
                         # 현재 문장 제거
                         if is_duplicate:

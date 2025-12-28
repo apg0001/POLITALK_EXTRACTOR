@@ -230,30 +230,45 @@ class Merger:
         return is_previous_speech_in_context or is_previous_speech_in_current
 
     @classmethod
-    def is_exceptional_conjunction(cls, part_before_quote):
+    def is_exceptional_conjunction(cls, part_before_quote, full_sentence=None):
         """예외 접속사 확인: 병합하지 않아야 하는 접속사가 있는지 확인
         
-        "이에 대해" 같은 예외 접속사가 있으면 병합하지 않습니다.
+        "이에 대해", "애 대해서는", "에 대해서는" 같은 예외 접속사가 있으면 병합하지 않습니다.
+        피드백: "행합치기에서, 마지막 큰따옴표 문장은 행합치기 대상이 아님. 
+        "" ….. 애 대해서는"" 이라는 문구가 들어감으로써 단순 접속사 이음이나 접속사 없는 단순 이음이 아님."
         
         Args:
             part_before_quote (str): 큰따옴표 앞 부분
+            full_sentence (str, optional): 전체 문장 (큰따옴표 포함). 문장 내부 패턴 체크용
             
         Returns:
             bool: 예외 접속사가 없으면 True (병합 가능), 있으면 False (병합 불가)
         """
-        if not part_before_quote:
-            return True
-
-        # 병합하지 않아야 하는 예외 접속사 리스트
-        exceptional_conjunctions = ["이에 대해"]
+        # 병합하지 않아야 하는 예외 접속사 패턴 리스트
+        # "이에 대해", "애 대해서는", "에 대해서는", "에 대해" 등 다양한 변형 포함
+        exceptional_patterns = [
+            "이에 대해",
+            "애 대해서는",
+            "에 대해서는",
+            "에 대해",
+            "대해서는",
+            "대해서"
+        ]
         
-        # 조건 1: 앞 부분이 예외 접속사와 정확히 일치하지 않음
-        is_not_exact_match = part_before_quote not in exceptional_conjunctions
+        # 1. 앞 부분에 예외 패턴이 포함되어 있는지 확인
+        if part_before_quote:
+            has_exceptional = any(pattern in part_before_quote for pattern in exceptional_patterns)
+            if has_exceptional:
+                return False
         
-        # 조건 2: 앞 부분에 예외 접속사가 포함되지 않음
-        has_no_exceptional = not any(conj in part_before_quote for conj in exceptional_conjunctions)
+        # 2. 전체 문장 내부에 예외 패턴이 포함되어 있는지 확인
+        # 예: "이 대표는 이런 상황을 초래한 것에 대해..." 같은 경우
+        if full_sentence:
+            has_exceptional = any(pattern in full_sentence for pattern in exceptional_patterns)
+            if has_exceptional:
+                return False
         
-        return is_not_exact_match and has_no_exceptional
+        return True
 
     @classmethod
     def case_same_sentence(cls, paragraph, target_sentence, previous_quoted_speeches):
@@ -478,7 +493,8 @@ class Merger:
         is_contextually_connected = cls.case_base(paragraph, text, previous_quoted_speeches)
         
         # 예외 접속사 확인 (이에 대해 등은 병합하지 않음)
-        is_not_exceptional = cls.is_exceptional_conjunction(part_before_quote)
+        # 문장 전체에서도 체크 (예: "이 대표는 이런 상황을 초래한 것에 대해...")
+        is_not_exceptional = cls.is_exceptional_conjunction(part_before_quote, full_sentence=text)
         
         # 같은 문장 내 포함 확인
         is_in_same_sentence = cls.case_same_sentence(paragraph, text, previous_quoted_speeches)

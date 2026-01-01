@@ -35,7 +35,7 @@ class ExcelWriter:
             self._save_rows_to_excel_and_csv(headers, rows, excel_file)
             print(f"엑셀 파일이 '{excel_file}'로 저장되었습니다.")
         except Exception as e:
-            print(f"발언의 배경 추출 및 엑셀 파일 저장 중 오류 발생: {e}")
+            print(f"엑셀 파일 저장 중 오류 발생: {e}")
             traceback.print_exc()
 
     def _prepare_rows_with_ai(self, data, progress_tracker):
@@ -55,7 +55,7 @@ class ExcelWriter:
 
         total_entries = len(data)
         progress_tracker.progress_bar['maximum'] = total_entries
-        progress_tracker.initialize_tqdm(total_entries, "[4단계 중 4단계] 발언의 배경 추출 및 엑셀 파일 저장 중")
+        progress_tracker.initialize_tqdm(total_entries, "[4단계 중 4단계] 엑셀 파일 저장 중")
 
         prev_paragraph = None
         prev_title = None
@@ -108,7 +108,7 @@ class ExcelWriter:
 
                 progress_tracker.update_progress(
                     i + 1, total_entries,
-                    "[4단계 중 4단계] 발언의 배경 추출 및 엑셀 파일 저장 중",
+                    "[4단계 중 4단계] 엑셀 파일 저장 중",
                     start_time
                 )
         finally:

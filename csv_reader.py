@@ -65,15 +65,10 @@ class CSVReader:
                     # 단문이면 바로 추가
                     if len(sentences) == 1:
                         add_flag = True
-                        # 단문일 때 발언자가 두 명 이상인지 체크
-                        # extract_speaker로 발언자 엔티티를 추출하고, word 필드로 고유 발언자 수 확인
-                        speaker_entities = text_processor.extract_speaker(clean_sentence)
-                        # 발언자 엔티티의 word 필드를 추출하여 고유 발언자 이름 집합 생성
-                        unique_speakers = set()
-                        for entity in speaker_entities:
-                            if "word" in entity:
-                                unique_speakers.add(entity["word"])
-                        has_multiple_speakers = len(unique_speakers) >= 2
+                        # 단문일 때 주어의 개수를 구문 분석으로 계산
+                        # '은', '는', '도' 등의 조사가 붙은 주어의 개수만 집계
+                        subject_count = text_processor.count_subjects(clean_sentence)
+                        has_multiple_speakers = subject_count >= 2
                     else:
                         # 조사 판별: '은', '는'만 통과
                         for name in candidate_speakers:

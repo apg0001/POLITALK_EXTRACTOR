@@ -96,6 +96,109 @@ class TextProcessor:
             list: 추출된 발언자 정보 리스트
         """
         return self.ner_extractor.extract_speaker(text)
+    
+    def count_subjects(self, text):
+        """구문 분석을 통해 주어의 개수를 계산
+        
+        주어는 '은', '는', '도' 등의 조사가 붙은 명사구를 의미합니다.
+        목적어는 제외하고 주어만 집계합니다.
+        
+        Args:
+            text (str): 분석할 텍스트
+            
+        Returns:
+            int: 주어의 개수
+        """
+        if not text or not text.strip():
+            return 0
+        
+        try:
+            from text_manager import nlp
+            doc = nlp(text.strip())
+            
+            subject_count = 0
+            subject_josa = ["은", "는", "도"]
+            
+            for sentence in doc.sentences:
+                # 주어 관계를 가진 단어들을 찾기
+                # nsubj, nsubj:pass, dislocated는 직접 주어
+                # compound는 주어를 수식하는 복합 명사구의 일부
+                subjects = []
+                compound_words = []
+                
+                for word in sentence.words:
+                    # nsubj: nominal subject (주어)
+                    # nsubj:pass: passive subject (피동 주어)
+                    # dislocated: 분산된 주어 (예: "윤건영 의원은"에서 "의원은")
+                    if word.deprel in ["nsubj", "nsubj:pass", "dislocated"]:
+                        subjects.append(word)
+                    # compound: 복합 주어의 일부 (예: "민주당 윤건영"에서 "민주당", "윤건영")
+                    elif word.deprel == "compound":
+                        compound_words.append(word)
+                
+                # 각 주어에 대해 조사 확인
+                for subject in subjects:
+                    word_text = subject.text
+                    word_id = subject.id  # 1-based 인덱스
+                    
+                    # 주어 단어 자체에 조사가 붙어있는지 확인 (예: "윤건영은")
+                    if any(word_text.endswith(josa) for josa in subject_josa):
+                        subject_count += 1
+                        continue
+                    
+                    # 다음 단어와 다다음 단어 확인 (예: "윤건영 의원은", "윤건영 더불어민주당 의원은")
+                    found_josa = False
+                    for offset in [1, 2]:  # 다음 단어, 다다음 단어
+                        next_word_id = word_id + offset
+                        for word in sentence.words:
+                            if word.id == next_word_id:
+                                # 단어 끝에 조사가 붙어있는지 확인 (예: "의원은")
+                                if any(word.text.endswith(josa) for josa in subject_josa):
+                                    subject_count += 1
+                                    found_josa = True
+                                    break
+                                # 단어가 조사(ADP)인 경우
+                                elif word.upos == "ADP" and any(josa in word.text for josa in subject_josa):
+                                    subject_count += 1
+                                    found_josa = True
+                                    break
+                        if found_josa:
+                            break
+                
+                # compound 관계의 단어들도 확인 (주어를 수식하는 복합 명사구의 일부)
+                # compound는 주어와 연결되어 있고, 조사가 붙은 경우를 찾음
+                for compound in compound_words:
+                    compound_text = compound.text
+                    compound_id = compound.id
+                    
+                    # compound 단어 자체에 조사가 붙어있는지 확인
+                    if any(compound_text.endswith(josa) for josa in subject_josa):
+                        subject_count += 1
+                        continue
+                    
+                    # compound 다음 단어와 다다음 단어 확인
+                    found_josa = False
+                    for offset in [1, 2]:  # 다음 단어, 다다음 단어
+                        next_word_id = compound_id + offset
+                        for word in sentence.words:
+                            if word.id == next_word_id:
+                                # 단어 끝에 조사가 붙어있는지 확인
+                                if any(word.text.endswith(josa) for josa in subject_josa):
+                                    subject_count += 1
+                                    found_josa = True
+                                    break
+                                # 단어가 조사(ADP)인 경우
+                                elif word.upos == "ADP" and any(josa in word.text for josa in subject_josa):
+                                    subject_count += 1
+                                    found_josa = True
+                                    break
+                        if found_josa:
+                            break
+            
+            return subject_count
+        except Exception as e:
+            # 구문 분석 실패 시 0 반환
+            return 0
 
     def calculate_similarity(self, sentence1, sentence2, criteria):
         """두 문장을 단어 단위로 비교하여 유사도 계산"""

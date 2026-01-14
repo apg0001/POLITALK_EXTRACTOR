@@ -52,6 +52,8 @@ class CSVReader:
         try:
             for i, row in data.iterrows():
                 sentences = text_processor.split_sentences_by_comma(row['발췌문장'])
+                # 빈 문자열이나 공백만 있는 문장 제거
+                sentences = [s for s in sentences if s and s.strip()]
 
                 for sentence in sentences:
                     _, clean_sentence = text_processor.extract_and_clean_quotes(sentence)
@@ -107,7 +109,10 @@ class CSVReader:
                         "다수 발언자": "Y" if has_multiple_speakers else ""
                     }
 
-                    if not any(self.validator.is_empty(v) for v in current_data.values()):
+                    # 필수 필드(날짜, 발언자, 신문사, 기사 제목, 문단, 문장, URL)가 비어있지 않으면 추가
+                    # "큰따옴표 발언"과 "다수 발언자"는 선택적 필드이므로 비어있어도 추가
+                    required_fields = ["날짜", "발언자 성명 및 직책", "신문사", "기사 제목", "문단", "문장", "URL"]
+                    if not any(self.validator.is_empty(current_data[field]) for field in required_fields):
                         extracted_data.append(current_data)
 
                 progress_tracker.update_progress(

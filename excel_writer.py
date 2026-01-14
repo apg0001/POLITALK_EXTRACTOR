@@ -61,10 +61,10 @@ class ExcelWriter:
         prev_title = None
 
         # AI 추출기 초기화
-        from extract_purpose import PurposeExtractor
-        from extract_topic_summary import TopicExtractor
-        purpose_extractor = PurposeExtractor()
-        topic_extractor = TopicExtractor()
+        # from extract_purpose import PurposeExtractor
+        # from extract_topic_summary import TopicExtractor
+        # purpose_extractor = PurposeExtractor()
+        # topic_extractor = TopicExtractor()
 
         # None 값을 빈 문자열로 정규화
         for _, entry in enumerate(data):

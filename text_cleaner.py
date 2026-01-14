@@ -75,6 +75,10 @@ class TextCleaner:
     def extract_quotes(self, text, name):
         """문단에서 큰따옴표로 묶인 발언을 추출하고, 특정 인물의 이름이 포함된 것만 반환
         
+        다른 사람의 발언은 제외합니다. 각 큰따옴표 앞의 문맥을 확인하여
+        해당 발언이 목표 발언자(name)의 발언인지 확인합니다.
+        extract_purpose.py의 _filter_text_for_speaker 로직을 참고했습니다.
+        
         Args:
             text (str): 추출할 텍스트
             name (str): 발언자 이름
@@ -82,9 +86,53 @@ class TextCleaner:
         Returns:
             str: 추출된 발언문들을 공백으로 연결한 문자열
         """
+        if not name or not text:
+            return ""
+        
         text = text.replace(""", "\"").replace(""", "\"").replace("'", "'")
         quotes = []
         start = 0
+        
+        # 발언자 이름 패턴 (extract_purpose.py의 _filter_text_for_speaker 로직 참고)
+        surname = name[0] if name else ""
+        position_keywords = ["의원", "대표", "장관", "위원장", "차관", "국장", "총장", "전"]
+        pos_rx = r'(?:' + '|'.join(map(re.escape, position_keywords)) + r')'
+        
+        # 목표 발언자 패턴
+        def is_target_speaker(context):
+            """목표 발언자의 발언인지 확인"""
+            # 전체 이름이 정확히 포함
+            if name in context:
+                return True
+            # 이름 + 직책 패턴
+            if re.search(rf'{re.escape(name)}\s*{pos_rx}', context):
+                return True
+            # 성 + 직책 패턴 (예: 윤 의원, 윤건영 의원 등)
+            if re.search(rf'{re.escape(surname)}[가-힣]{{1,2}}\s*{pos_rx}', context):
+                return True
+            return False
+        
+        def has_other_speaker(context):
+            """다른 사람의 발언인지 확인 (목표 발언자가 아닌 경우)"""
+            # 목표 발언자가 명시적으로 언급된 경우는 False
+            if is_target_speaker(context):
+                return False
+            
+            # 다른 사람 패턴 확인
+            # "한 장관", "그 장관", "이 장관" 같은 패턴
+            if re.search(r'(한|그|이|그런|이런)\s+(장관|의원|대표|위원장|차관)', context):
+                return True
+            
+            # 다른 사람의 이름 + 직책 패턴 (목표 발언자가 아닌 경우)
+            other_speaker_pattern = rf'[가-힣]{{2,3}}\s*{pos_rx}'
+            matches = re.finditer(other_speaker_pattern, context)
+            for match in matches:
+                matched_text = match.group()
+                # 목표 발언자 패턴이 아닌 경우
+                if not is_target_speaker(matched_text):
+                    return True
+            
+            return False
 
         while start < len(text):
             start = text.find('"', start)
@@ -94,8 +142,20 @@ class TextCleaner:
             if end == -1:
                 break
 
-            extracted_sentence = f'"{text[start + 1:end]}"'
-            quotes.append(extracted_sentence)
+            # 큰따옴표 앞 부분 확인 (최대 150자, 문장 시작까지)
+            context_start = max(0, start - 150)
+            context_before = text[context_start:start]
+            
+            # 목표 발언자의 발언인지 확인
+            is_target = is_target_speaker(context_before)
+            is_other = has_other_speaker(context_before)
+            
+            # 목표 발언자의 발언이거나, 발언자 정보가 불명확한 경우에만 추출
+            # (다른 사람의 발언이 명확한 경우는 제외)
+            if is_target or (not is_other and not is_target):
+                extracted_sentence = f'"{text[start + 1:end]}"'
+                quotes.append(extracted_sentence)
+            
             start = end + 1
 
         return "  ".join(quotes)

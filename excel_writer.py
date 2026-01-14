@@ -50,7 +50,7 @@ class ExcelWriter:
         # ]
         workbook_headers = [
             "날짜", "발언자 성명 및 직책", "신문사", "기사 제목",
-            "문단", "문장", "큰따옴표 발언", "URL"
+            "문단", "문장", "큰따옴표 발언", "URL", "다수 발언자"
         ]
 
         total_entries = len(data)

@@ -342,7 +342,7 @@ class CSVExcelConverterGUI:
 
             # 현재 날짜를 YYMMDD 형식으로 설정
             formatted_date = datetime.datetime.now().strftime('%y%m%d')
-            excel_file_path = file_path.replace(".csv", f"_AI변환{formatted_date}.xlsx")
+            excel_file_path = file_path.replace(".csv", f"_1차변환_{formatted_date}.xlsx")
             
             self.excel_file_entry.delete(0, tk.END)
             self.excel_file_entry.insert(0, excel_file_path)

@@ -227,3 +227,8 @@ tempCodeRunnerFile.py
 # markdown files
 *.md
 !README.md
+
+# excel files
+*.xlsx
+*.csv
+!input.csv

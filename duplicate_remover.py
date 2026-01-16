@@ -293,7 +293,7 @@ class DuplicateRemover:
                 
                 while previous_entry_idx < len(previous_entries_cache):
                     # previous_entry = deduplicated_result[previous_entry_idx]
-                    previous_cache = previous_entries_cache[previous_entry_idx]
+                    # previous_cache = previous_entries_cache[previous_entry_idx]
                     
                     # previous_quotes = previous_cache['original']
                     
@@ -344,7 +344,7 @@ class DuplicateRemover:
                         temp_start_idx = max(0, len(previous_entries_cache) - temp_comparison_window)
                         temp_previous_entry_idx = temp_start_idx
                         while temp_previous_entry_idx < len(previous_entries_cache):
-                            temp_previous_entry = deduplicated_result[temp_previous_entry_idx]
+                            # temp_previous_entry = deduplicated_result[temp_previous_entry_idx]
                             temp_previous_cache = previous_entries_cache[temp_previous_entry_idx]
                             temp_previous_quotes = temp_previous_cache['original']
                             temp_previous_normalized = temp_previous_cache['normalized']
@@ -360,42 +360,16 @@ class DuplicateRemover:
                                 is_previous_subset = self._is_subset(previous_normalized, current_normalized)
                                 
                                 if is_current_subset or is_previous_subset:
-                                    # 룰 2: 개수 기반 우선순위 먼저 적용
-                                    removal_target = self._get_removal_target(
-                                        len(current_quotes),
-                                        len(temp_previous_quotes),
-                                        is_similar_only=False
-                                    )
-                                    
-                                    if removal_target == 'current':
-                                        # current가 개수가 적음 → current 제거
+                                    # 부분 포함 관계가 가장 먼저 고려됨
+                                    # A < A'인 경우 A 문장을 삭제
+                                    if is_current_subset:
+                                        # current가 previous의 부분집합 → current 제거
                                         is_current_duplicate = True
                                         break
-                                    elif removal_target == 'previous':
-                                        # previous가 개수가 적음 → previous 제거
+                                    elif is_previous_subset:
+                                        # previous가 current의 부분집합 → previous 제거
                                         temp_remove_previous_indices.append(prev_idx)
                                         continue
-                                    
-                                    # 개수가 같으면 길이 기준으로 판단
-                                    len_current = len(current_normalized)
-                                    len_previous = len(previous_normalized)
-                                    
-                                    if len_current < len_previous:
-                                        # current가 짧음 → current 제거
-                                        is_current_duplicate = True
-                                        break
-                                    elif len_current > len_previous:
-                                        # previous가 짧음 → previous 제거
-                                        temp_remove_previous_indices.append(prev_idx)
-                                        continue
-                                    else:
-                                        # 길이도 같으면 부분 포함 관계에 따라 판단
-                                        if is_current_subset:
-                                            is_current_duplicate = True
-                                            break
-                                        elif is_previous_subset:
-                                            temp_remove_previous_indices.append(prev_idx)
-                                            continue
                                 
                                 # 2순위: 룰 1 - 유사도 체크 (기본값 0.5 사용)
                                 # 정규화된 문장을 직접 전달하여 재정규화 방지

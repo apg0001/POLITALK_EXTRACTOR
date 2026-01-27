@@ -136,13 +136,13 @@ class DuplicateRemover:
         # A의 70% 이상 단어가 B에 포함되고, A의 단어 수가 B보다 적으면 부분집합
         return match_ratio >= threshold and len(words_a) < len(words_b)
     
-    def _are_similar(self, quote1, quote2, threshold=0.5, norm1=None, norm2=None):
+    def _are_similar(self, quote1, quote2, threshold=0.625, norm1=None, norm2=None):
         """룰 1: 두 발언이 임계값 이상 유사한지 확인
         
         Args:
             quote1 (str): 첫 번째 발언 (norm1이 제공되면 사용하지 않음)
             quote2 (str): 두 번째 발언 (norm2가 제공되면 사용하지 않음)
-            threshold (float): 유사도 임계값 (기본값 0.5)
+            threshold (float): 유사도 임계값 (기본값 0.625)
             norm1 (str, optional): 이미 정규화된 첫 번째 발언
             norm2 (str, optional): 이미 정규화된 두 번째 발언
             

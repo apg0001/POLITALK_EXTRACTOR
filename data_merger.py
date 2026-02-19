@@ -21,7 +21,7 @@ class DataMerger:
         접속사나 문맥을 고려하여 관련된 발언들을 하나로 합칩니다.
 
         병합 조건:
-        1. 기사 제목, 발언자, 날짜, 신문사가 모두 동일
+        1. 기사제목, 발언자, 날짜, 신문사가 모두 동일
         2. 이전 발언과 문맥적으로 연결되어 병합 가능한 경우 (Merger.check_cases)
 
         Args:
@@ -57,23 +57,23 @@ class DataMerger:
                 last_merged_entry = merged_result[-1]
                 
                 # 병합 가능 여부 확인: 메타데이터가 모두 동일한지 확인
-                is_same_article = (last_merged_entry["기사 제목"] == current_entry["기사 제목"])
-                is_same_speaker = (last_merged_entry["발언자 성명 및 직책"] == current_entry["발언자 성명 및 직책"])
+                is_same_article = (last_merged_entry["기사제목"] == current_entry["기사제목"])
+                is_same_speaker = (last_merged_entry["발언자"] == current_entry["발언자"])
                 is_same_date = (last_merged_entry["날짜"] == current_entry["날짜"])
                 is_same_newspaper = (last_merged_entry["신문사"] == current_entry["신문사"])
                 
                 # 디버깅: 메타데이터 비교 결과 출력
                 if self.debug:
                     print(f"\n[병합 시도 #{current_idx + 1}]")
-                    print(f"  기사 제목 일치: {is_same_article}")
-                    print(f"  발언자 일치: {is_same_speaker} ({last_merged_entry['발언자 성명 및 직책']} == {current_entry['발언자 성명 및 직책']})")
+                    print(f"  기사제목 일치: {is_same_article}")
+                    print(f"  발언자 일치: {is_same_speaker} ({last_merged_entry['발언자']} == {current_entry['발언자']})")
                     print(f"  날짜 일치: {is_same_date} ({last_merged_entry['날짜']} == {current_entry['날짜']})")
                     print(f"  신문사 일치: {is_same_newspaper} ({last_merged_entry['신문사']} == {current_entry['신문사']})")
                 
                 # 이전 발언의 큰따옴표 발언들을 리스트로 변환 (문맥 확인용)
                 previous_quoted_speeches = []
                 if current_idx > 0:
-                    previous_quoted_speeches = data[current_idx - 1]["큰따옴표 발언"].split("  ")
+                    previous_quoted_speeches = data[current_idx - 1]["발언"].split("  ")
                 
                 # 문맥적으로 병합 가능한지 확인 (접속사, 문장 구조 등 고려)
                 is_contextually_mergeable = Merger.check_cases(
@@ -96,17 +96,17 @@ class DataMerger:
                     if self.debug:
                         print(f"  ✓ 병합 수행")
                     
-                    # 큰따옴표 발언 병합 (중복 제거)
-                    current_quoted_speech = current_entry["큰따옴표 발언"]
-                    last_quoted_speech = last_merged_entry["큰따옴표 발언"]
+                    # 발언 병합 (중복 제거)
+                    current_quoted_speech = current_entry["발언"]
+                    last_quoted_speech = last_merged_entry["발언"]
                     
                     if current_quoted_speech not in last_quoted_speech:
-                        last_merged_entry["큰따옴표 발언"] = f"{last_quoted_speech}  {current_quoted_speech}"
+                        last_merged_entry["발언"] = f"{last_quoted_speech}  {current_quoted_speech}"
                         if self.debug:
-                            print(f"  큰따옴표 발언 병합: {len(last_quoted_speech)}자 + {len(current_quoted_speech)}자")
+                            print(f"  발언 병합: {len(last_quoted_speech)}자 + {len(current_quoted_speech)}자")
                     else:
                         if self.debug:
-                            print(f"  큰따옴표 발언 중복 감지 (추가 안 함)")
+                            print(f"  발언 중복 감지 (추가 안 함)")
 
                     # 문단 병합 (중복 문장 제거)
                     if self.debug:

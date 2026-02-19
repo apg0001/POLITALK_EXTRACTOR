@@ -222,7 +222,7 @@ class DuplicateRemover:
             # 각 엔트리를 순회하며 중복 확인
             for current_idx, current_entry in enumerate(data):
                 # 현재 엔트리의 발언문을 문장 단위로 분리
-                current_quotes = [q.strip() for q in current_entry["큰따옴표 발언"].split("  ") if q.strip()]
+                current_quotes = [q.strip() for q in current_entry["발언"].split("  ") if q.strip()]
                 
                 # 큰따옴표 발언이 없는 행은 제거 (결과에 추가하지 않음)
                 if not current_quotes:
@@ -346,7 +346,7 @@ class DuplicateRemover:
                                 
                                 # 이전 엔트리 업데이트
                                 if prev_quotes:
-                                    prev_entry["큰따옴표 발언"] = "  ".join(prev_quotes)
+                                    prev_entry["발언"] = "  ".join(prev_quotes)
                                     previous_entries_cache[prev_entry_idx]['original'] = prev_quotes
                                     previous_entries_cache[prev_entry_idx]['normalized'] = [self._normalize_quote(q) for q in prev_quotes]
                                 else:
@@ -376,7 +376,7 @@ class DuplicateRemover:
 
                 # 중복 제거 후 남은 문장이 있으면 결과에 추가
                 if current_quotes:
-                    current_entry["큰따옴표 발언"] = "  ".join(current_quotes)
+                    current_entry["발언"] = "  ".join(current_quotes)
                     deduplicated_result.append(current_entry)
                     
                     # 캐시에 추가 (다음 비교를 위해)

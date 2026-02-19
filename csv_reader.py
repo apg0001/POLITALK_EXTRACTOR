@@ -109,25 +109,24 @@ class CSVReader:
 
                     current_data = {
                         "날짜": text_processor.to_string(row["일자"]),
-                        "발언자 성명 및 직책": text_processor.to_string(row["이름"]),
+                        "발언자": text_processor.to_string(row["이름"]),
                         "신문사": text_processor.to_string(row["신문사"]),
-                        "기사 제목": text_processor.to_string(row["제목"]),
+                        "기사제목": text_processor.to_string(row["제목"]),
                         "문단": text_processor.to_string(row["발췌문단"]),
                         "문장": text_processor.to_string(row["발췌문장"]),
-                        "큰따옴표 발언": text_processor.extract_quotes(
+                        "발언": text_processor.extract_quotes(
                             sentence, text_processor.to_string(row["이름"])
                         ),
                         "URL": text_processor.to_string(row["URL"]),
-                        "다수 발언자": "Y" if has_multiple_speakers else "",
                     }
 
-                    # 필수 필드(날짜, 발언자, 신문사, 기사 제목, 문단, 문장, URL)가 비어있지 않으면 추가
-                    # "큰따옴표 발언"과 "다수 발언자"는 선택적 필드이므로 비어있어도 추가
+                    # 필수 필드(날짜, 발언자, 신문사, 기사제목, 문단, 문장, URL)가 비어있지 않으면 추가
+                    # "발언"은 선택적 필드이므로 비어있어도 추가
                     required_fields = [
                         "날짜",
-                        "발언자 성명 및 직책",
+                        "발언자",
                         "신문사",
-                        "기사 제목",
+                        "기사제목",
                         "문단",
                         "문장",
                         "URL",

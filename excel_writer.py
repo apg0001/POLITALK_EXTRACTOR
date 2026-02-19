@@ -49,8 +49,8 @@ class ExcelWriter:
         #     "발언의 배경", "문단", "발언의 목적 취지", "문장", "큰따옴표 발언",
         # ]
         workbook_headers = [
-            "날짜", "발언자 성명 및 직책", "신문사", "기사 제목",
-            "문단", "문장", "큰따옴표 발언", "URL", "다수 발언자"
+            "날짜", "발언자", "신문사", "기사제목",
+            "문단", "문장", "발언", "URL",
         ]
 
         total_entries = len(data)
@@ -78,16 +78,16 @@ class ExcelWriter:
         rows = []
         try:
             for i, entry in enumerate(data):
-                if prev_title != entry["기사 제목"]:
-                    prev_title = entry["기사 제목"]
+                if prev_title != entry["기사제목"]:
+                    prev_title = entry["기사제목"]
 
                 # entry["발언의 목적 취지"] = purpose_extractor.extract_purpose(
-                #     entry["발언자 성명 및 직책"], entry["기사 제목"], entry.get("문장", "").split("  ")[0], entry["문단"]
+                #     entry["발언자"], entry["기사제목"], entry.get("문장", "").split("  ")[0], entry["문단"]
                 # )
                 # entry["발언의 목적 취지"] = ""
 
                 if prev_title is not None and prev_paragraph is not None:
-                    if prev_title == entry["기사 제목"] and prev_paragraph == entry["문단"]:
+                    if prev_title == entry["기사제목"] and prev_paragraph == entry["문단"]:
                         pp = prev_paragraph
                     else:
                         pp = None
@@ -95,15 +95,15 @@ class ExcelWriter:
                     pp = None
 
                 # entry["발언의 배경"] = topic_extractor.extract_topic(
-                #     entry["기사 제목"], entry["문단"], entry["발언의 목적 취지"],
-                #     entry["큰따옴표 발언"], entry["발언자 성명 및 직책"], pp
+                #     entry["기사제목"], entry["문단"], entry["발언의 목적 취지"],
+                #     entry["발언"], entry["발언자"], pp
                 # )
                 # entry["발언의 배경"] = ""
 
                 row = [entry.get(header, "") for header in workbook_headers]
                 rows.append(row)
 
-                prev_title = entry["기사 제목"]
+                prev_title = entry["기사제목"]
                 prev_paragraph = entry["문단"]
 
                 progress_tracker.update_progress(

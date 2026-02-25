@@ -138,267 +138,161 @@ class DuplicateRemover:
     
     def _are_similar(self, quote1, quote2, threshold=0.625, norm1=None, norm2=None):
         """룰 1: 두 발언이 임계값 이상 유사한지 확인
-        
+
         Args:
             quote1 (str): 첫 번째 발언 (norm1이 제공되면 사용하지 않음)
             quote2 (str): 두 번째 발언 (norm2가 제공되면 사용하지 않음)
             threshold (float): 유사도 임계값 (기본값 0.625)
             norm1 (str, optional): 이미 정규화된 첫 번째 발언
             norm2 (str, optional): 이미 정규화된 두 번째 발언
-            
+
         Returns:
             bool: 유사도가 임계값 이상이면 True
         """
         similarity = self._calculate_similarity(quote1, quote2, norm1=norm1, norm2=norm2)
         return similarity >= threshold
-    
-    
-    def _get_removal_target(self, count1, count2, is_similar_only=False):
-        """룰 2: 개수 기반 우선순위 결정
-        
-        단일 문장 우선 제거: 단일 문장인 행은 복수 문장을 가진 행보다 우선 제거 대상
-        개수가 적은 쪽 우선 제거: 개수가 다르면 적은 쪽을 제거
-        
-        Args:
-            count1 (int): 첫 번째 행의 큰따옴표 문장 개수
-            count2 (int): 두 번째 행의 큰따옴표 문장 개수
-            is_similar_only (bool): 유사도만 체크한 경우 (부분 포함이 아닌 경우) True
-            
-        Returns:
-            str or None: 'current' (count1에서 제거), 'previous' (count2에서 제거), None (우선순위 없음)
+
+    def _is_duplicate(self, norm_a, norm_b, quote_a=None, quote_b=None):
+        """두 발언이 중복인지 확인 (부분집합 관계 또는 유사도 임계값 이상).
+        기존 임계값 유지.
         """
-        # 단일 문장 우선 제거: 단일 문장인 행을 우선 제거
-        if count1 == 1 and count2 > 1:
-            return 'current'  # current가 단일 문장 → current 제거
-        elif count1 > 1 and count2 == 1:
-            return 'previous'  # previous가 단일 문장 → previous 제거
-        
-        # 개수가 다르면 적은 쪽 제거 (단일/복수 구분 없이)
-        if count1 < count2:
-            return 'current'  # 개수가 적은 쪽(current)에서 제거
-        elif count1 > count2:
-            return 'previous'  # 개수가 적은 쪽(previous)에서 제거
-        
-        # 개수가 같으면 우선순위 없음 (길이 기준 등으로 판단)
-        return None
-    
+        if self._is_subset(quote_a or "", quote_b or "", norm_a=norm_a, norm_b=norm_b):
+            return True
+        if self._is_subset(quote_b or "", quote_a or "", norm_a=norm_b, norm_b=norm_a):
+            return True
+        if self._are_similar(
+            quote_a or "", quote_b or "", norm1=norm_a, norm2=norm_b
+        ):
+            return True
+        return False
+
     def remove_duplicates(self, data, progress_tracker):
-        """중복 발언 제거
-        
-        중복제거 룰에 따라 중복된 큰따옴표 발언을 제거합니다.
-        각 엔트리의 큰따옴표 발언을 이전 엔트리들과 비교하여 중복을 찾아 제거합니다.
-        
-        중복 판단 룰 (우선순위 순):
-        1. 룰 3: 부분 포함 (A ⊂ B) → A 제거
-        2. 룰 1: 70% 이상 유사도 → 동일 처리
-        3. 룰 2: 개수 기반 우선순위 → 개수가 적은 행에서 제거, 많은 행 유지
-        
-        Args:
-            data (list): 중복 제거할 데이터 리스트
-            progress_tracker (ProgressTracker): 진행률 추적기
-            
-        Returns:
-            list: 중복이 제거된 데이터 리스트
+        """중복 발언 제거 (배치 단위 3단계 룰)
+
+        1. 큰따옴표 1개인 행: 자기 자신을 제외한 다른 모든 행과 중복 검토 → 중복이 있으면 해당 행 전체 제거
+        2. 큰따옴표 2개인 행: 다른 모든 행과 비교하여 중복 문장이 있으면 자기 행에서 해당 문장만 제거
+        3. 큰따옴표 3개 이상인 행: 같은 3개 이상 행들끼리만 비교, 중복 시 자기 행에서 해당 문장 제거 (문장 수 비교 없음)
+        기존 중복 임계값(유사도/부분집합) 유지.
         """
         if not data:
             print("[중복 제거] 저장할 데이터가 없습니다.")
             return []
-        
-        # 이전 엔트리들의 정규화된 발언문을 저장 (비교용)
-        # 각 항목: {'original': 원본 발언문 리스트, 'normalized': 정규화된 발언문 리스트}
-        previous_entries_cache = []
-        
-        # 중복이 제거된 최종 결과
-        deduplicated_result = []
-        
+
+        import time
+        start_time = time.time()
         total_entries = len(data)
         progress_tracker.progress_bar['maximum'] = total_entries
         progress_tracker.initialize_tqdm(total_entries, "[4단계 중 3단계] 중복 제거 중")
 
-        import time
-        start_time = time.time()
-
         try:
-            # 각 엔트리를 순회하며 중복 확인
-            for current_idx, current_entry in enumerate(data):
-                # 현재 엔트리의 발언문을 문장 단위로 분리
-                current_quotes = [q.strip() for q in current_entry["발언"].split("  ") if q.strip()]
-                
-                # 큰따옴표 발언이 없는 행은 제거 (결과에 추가하지 않음)
-                if not current_quotes:
-                    # 진행률 업데이트
-                    progress_tracker.update_progress(
-                        current_idx + 1, total_entries,
-                        "[4단계 중 3단계] 중복 제거 중",
-                        start_time
-                    )
+            # 전처리: 각 행을 발언 리스트·정규화 리스트로 파싱하고, 원본 순서 인덱스와 함께 그룹 분류
+            parsed = []
+            for idx, entry in enumerate(data):
+                quotes = [q.strip() for q in entry.get("발언", "").split("  ") if q.strip()]
+                if not quotes:
+                    parsed.append((idx, entry, None, None))
                     continue
-                
-                # 현재 엔트리의 모든 문장을 미리 정규화 (한 번만 수행하여 성능 최적화)
-                current_normalized_quotes = [self._normalize_quote(q) for q in current_quotes]
+                norm = [self._normalize_quote(q) for q in quotes]
+                parsed.append((idx, entry, quotes, norm))
 
-                # 이전 엔트리들과 비교하여 중복 제거
-                # 성능 최적화: 위로 최대 30개 엔트리만 비교
-                comparison_window = 30
-                start_idx = max(0, len(previous_entries_cache) - comparison_window)
-                previous_entry_idx = start_idx
-                entry_removed = False  # 현재 엔트리가 전체 제거되었는지 여부
-                
-                while previous_entry_idx < len(previous_entries_cache):                    
-                    # 현재 엔트리의 각 문장을 모든 이전 엔트리와 비교
-                    # 같은 엔트리 내의 여러 문장이 각각 다른 행과 중복되는 경우를 처리하기 위해
-                    # 각 문장을 독립적으로 모든 이전 엔트리와 비교한 후 제거 결정
-                    current_quote_idx = 0
-                    
-                    while current_quote_idx < len(current_quotes):
-                        current_quote = current_quotes[current_quote_idx]
-                        current_normalized = current_normalized_quotes[current_quote_idx]
-                        is_current_duplicate = False  # 현재 문장이 중복인지
-                        remove_previous_indices_map = {}  # {previous_entry_idx: [prev_idx, ...]}
-                        
-                        # 모든 이전 엔트리와 비교
-                        # 성능 최적화: 위로 최대 30개 엔트리만 비교
-                        # 핵심: 같은 엔트리 내의 다른 문장이 다른 이전 엔트리와 중복될 수 있으므로
-                        # 각 문장을 독립적으로 이전 엔트리와 비교해야 함
-                        temp_comparison_window = 30
-                        temp_start_idx = max(0, len(previous_entries_cache) - temp_comparison_window)
-                        temp_previous_entry_idx = temp_start_idx
-                        while temp_previous_entry_idx < len(previous_entries_cache):
-                            temp_previous_cache = previous_entries_cache[temp_previous_entry_idx]
-                            temp_previous_quotes = temp_previous_cache['original']
-                            temp_previous_normalized = temp_previous_cache['normalized']
-                            temp_remove_previous_indices = []
-                            
-                            # 이전 엔트리의 각 문장과 비교
-                            for prev_idx, previous_quote in enumerate(temp_previous_quotes):
-                                previous_normalized = temp_previous_normalized[prev_idx]
-                                
-                                # 1순위: 룰 3 - 부분 포함 체크 (최우선)
-                                # 정규화된 문장으로 비교
-                                is_current_subset = self._is_subset(current_normalized, previous_normalized)
-                                is_previous_subset = self._is_subset(previous_normalized, current_normalized)
-                                
-                                if is_current_subset or is_previous_subset:
-                                    # 부분 포함 관계가 가장 먼저 고려됨
-                                    # A < A'인 경우 A 문장을 삭제
-                                    if is_current_subset:
-                                        # current가 previous의 부분집합 → current 제거
-                                        is_current_duplicate = True
-                                        break
-                                    elif is_previous_subset:
-                                        # previous가 current의 부분집합 → previous 제거
-                                        temp_remove_previous_indices.append(prev_idx)
-                                        continue
-                                
-                                # 2순위: 룰 1 - 유사도 체크 (기본값 0.5 사용)
-                                # 정규화된 문장을 직접 전달하여 재정규화 방지
-                                elif self._are_similar(current_quote, previous_quote,
-                                                       norm1=current_normalized, norm2=previous_normalized):
-                                    len_current = len(current_normalized)
-                                    len_previous = len(previous_normalized)
-                                    
-                                    # 룰 2: 개수 기반 우선순위 적용
-                                    removal_target = self._get_removal_target(
-                                        len(current_quotes),
-                                        len(temp_previous_quotes),
-                                        is_similar_only=True
-                                    )
-                                    
-                                    if removal_target == 'current':
-                                        # current 문장 제거
-                                        is_current_duplicate = True
-                                        break
-                                    elif removal_target == 'previous':
-                                        # previous 문장 제거
-                                        temp_remove_previous_indices.append(prev_idx)
-                                        continue
-                                    else:
-                                        # 개수 같거나 비슷함 → 길이 기준으로 판단
-                                        if len_current < len_previous:
-                                            is_current_duplicate = True
-                                            break
-                                        elif len_current > len_previous:
-                                            temp_remove_previous_indices.append(prev_idx)
-                                            continue
-                                        else:
-                                            # 길이도 같음 → current 제거 (기본)
-                                            is_current_duplicate = True
-                                            break
-                            
-                            # 이전 엔트리에서 제거할 문장들 기록
-                            if temp_remove_previous_indices:
-                                remove_previous_indices_map[temp_previous_entry_idx] = temp_remove_previous_indices
-                            
-                            # 현재 문장이 중복으로 판단되면 더 이상 비교하지 않음
-                            if is_current_duplicate:
-                                break
-                            
-                            temp_previous_entry_idx += 1
-                        
-                        # 이전 엔트리들에서 제거할 문장들 처리 (역순으로 제거)
-                        if remove_previous_indices_map:
-                            for prev_entry_idx in sorted(remove_previous_indices_map.keys(), reverse=True):
-                                prev_quotes = previous_entries_cache[prev_entry_idx]['original']
-                                prev_entry = deduplicated_result[prev_entry_idx]
-                                
-                                for idx in sorted(remove_previous_indices_map[prev_entry_idx], reverse=True):
-                                    prev_quotes.pop(idx)
-                                
-                                # 이전 엔트리 업데이트
-                                if prev_quotes:
-                                    prev_entry["발언"] = "  ".join(prev_quotes)
-                                    previous_entries_cache[prev_entry_idx]['original'] = prev_quotes
-                                    previous_entries_cache[prev_entry_idx]['normalized'] = [self._normalize_quote(q) for q in prev_quotes]
-                                else:
-                                    # 이전 엔트리의 모든 문장이 제거되면 엔트리 자체 삭제
-                                    del deduplicated_result[prev_entry_idx]
-                                    del previous_entries_cache[prev_entry_idx]
-                        
-                        # 현재 문장 제거
-                        if is_current_duplicate:
-                            current_quotes.pop(current_quote_idx)
-                            current_normalized_quotes.pop(current_quote_idx)  # 정규화된 버전도 함께 제거
-                            # 인덱스는 증가시키지 않음 (다음 문장이 같은 인덱스로 이동)
-                        else:
-                            current_quote_idx += 1
-                    
-                    previous_entry_idx += 1
+            # 그룹 분류: 1개 / 2개 / 3개 이상
+            group_1 = [(i, e, q, n) for i, e, q, n in parsed if q and len(q) == 1]
+            group_2 = [(i, e, q, n) for i, e, q, n in parsed if q and len(q) == 2]
+            group_3plus = [(i, e, q, n) for i, e, q, n in parsed if q and len(q) >= 3]
 
-                # 전체 엔트리가 제거된 경우 스킵
-                if entry_removed:
-                    # 진행률 업데이트
-                    progress_tracker.update_progress(
-                        current_idx + 1, total_entries,
-                        "[4단계 중 3단계] 중복 제거 중",
-                        start_time
-                    )
-                    continue
+            # 비교용: "다른 모든 행"의 (원문, 정규화) 쌍 리스트 (인덱스 제외용은 나중에 반복에서 처리)
+            def all_quotes_except(entries, exclude_idx):
+                out = []
+                for i, _e, q, n in entries:
+                    if i == exclude_idx or not q:
+                        continue
+                    for qi, (orig, norm_val) in enumerate(zip(q, n)):
+                        out.append((orig, norm_val))
+                return out
 
-                # 중복 제거 후 남은 문장이 있으면 결과에 추가
-                if current_quotes:
-                    current_entry["발언"] = "  ".join(current_quotes)
-                    deduplicated_result.append(current_entry)
-                    
-                    # 캐시에 추가 (다음 비교를 위해)
-                    # 남은 문장들에 대한 정규화된 버전도 함께 저장 (캐시 활용)
-                    # current_normalized_quotes는 이미 정규화되어 있으므로 재정규화 불필요
-                    remaining_normalized = current_normalized_quotes[:]  # 복사본 사용
-                    
-                    previous_entries_cache.append({
-                        'original': current_quotes,
-                        'normalized': remaining_normalized
-                    })
+            kept = []  # (original_index, entry_dict)
 
-                # 진행률 업데이트
+            # 1단계: 큰따옴표 1개인 행 — 자기 제외 다른 모든 행과 중복이면 자기 전체 제거
+            for pos, (idx, entry, quotes, norms) in enumerate(group_1):
                 progress_tracker.update_progress(
-                    current_idx + 1, total_entries,
-                    "[4단계 중 3단계] 중복 제거 중",
+                    pos + 1, total_entries,
+                    "[4단계 중 3단계] 중복 제거 중 (1개 문장 행)",
                     start_time
                 )
+                my_q, my_n = quotes[0], norms[0]
+                others = all_quotes_except(group_1 + group_2 + group_3plus, exclude_idx=idx)
+                is_dup = False
+                for other_q, other_n in others:
+                    if self._is_duplicate(my_n, other_n, quote_a=my_q, quote_b=other_q):
+                        is_dup = True
+                        break
+                if not is_dup:
+                    kept.append((idx, entry))
 
+            # 2단계: 큰따옴표 2개인 행 — 다른 모든 행과 비교, 중복 문장은 자기 자신에서 제거
+            for pos, (idx, entry, quotes, norms) in enumerate(group_2):
+                progress_tracker.update_progress(
+                    len(group_1) + pos + 1, total_entries,
+                    "[4단계 중 3단계] 중복 제거 중 (2개 문장 행)",
+                    start_time
+                )
+                others = all_quotes_except(group_1 + group_2 + group_3plus, exclude_idx=idx)
+                new_quotes = []
+                for my_q, my_n in zip(quotes, norms):
+                    is_dup = False
+                    for other_q, other_n in others:
+                        if self._is_duplicate(my_n, other_n, quote_a=my_q, quote_b=other_q):
+                            is_dup = True
+                            break
+                    if not is_dup:
+                        new_quotes.append(my_q)
+                if new_quotes:
+                    new_entry = dict(entry)
+                    new_entry["발언"] = "  ".join(new_quotes)
+                    kept.append((idx, new_entry))
+
+            # 3단계: 큰따옴표 3개 이상 행들끼리만 비교, 중복 시 자기 자신에서 해당 문장 제거
+            only_3plus_quotes = []
+            for i, _e, q, n in group_3plus:
+                if not q:
+                    continue
+                for orig, norm_val in zip(q, n):
+                    only_3plus_quotes.append((i, orig, norm_val))
+
+            for pos, (idx, entry, quotes, norms) in enumerate(group_3plus):
+                progress_tracker.update_progress(
+                    len(group_1) + len(group_2) + pos + 1, total_entries,
+                    "[4단계 중 3단계] 중복 제거 중 (3개 이상 문장 행)",
+                    start_time
+                )
+                # 다른 3+ 행들의 모든 문장 (자기 행 제외)
+                others_3plus = [(o, no) for i, o, no in only_3plus_quotes if i != idx]
+                new_quotes = []
+                for my_q, my_n in zip(quotes, norms):
+                    is_dup = False
+                    for other_q, other_n in others_3plus:
+                        if self._is_duplicate(my_n, other_n, quote_a=my_q, quote_b=other_q):
+                            is_dup = True
+                            break
+                    if not is_dup:
+                        new_quotes.append(my_q)
+                if new_quotes:
+                    new_entry = dict(entry)
+                    new_entry["발언"] = "  ".join(new_quotes)
+                    kept.append((idx, new_entry))
+
+            # 원본 행 순서로 정렬 후 반환
+            deduplicated_result = [entry for _idx, entry in sorted(kept, key=lambda x: x[0])]
+
+            progress_tracker.update_progress(
+                total_entries, total_entries,
+                "[4단계 중 3단계] 중복 제거 중",
+                start_time
+            )
         except Exception as e:
             print(f"중복 제거 중 오류 발생: {e}")
             traceback.print_exc()
+            deduplicated_result = []
         finally:
             progress_tracker.close_tqdm()
 

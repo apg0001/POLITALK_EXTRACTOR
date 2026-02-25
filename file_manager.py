@@ -97,27 +97,3 @@ class FileProcessor:
         """
         progress_tracker = ProgressTracker(progress_bar, progress_label)
         return self.excel_writer.save_data_to_excel(data, excel_file, progress_tracker)
-
-
-# 하위 호환성을 위한 함수들
-def format_remaining_time(remaining_seconds):
-    return FileProcessor.format_remaining_time(remaining_seconds)
-
-def is_empty(value):
-    return FileProcessor.is_empty(value)
-
-def extract_text_from_csv(csv_file, progress_bar, progress_label):
-    processor = FileProcessor()
-    return processor.extract_text_from_csv(csv_file, progress_bar, progress_label)
-
-def merge_data(data, progress_bar, progress_label):
-    processor = FileProcessor()
-    return processor.merge_data(data, progress_bar, progress_label)
-
-def remove_duplicates(data, progress_bar, progress_label):
-    processor = FileProcessor()
-    return processor.remove_duplicates(data, progress_bar, progress_label)
-
-def save_data_to_excel(data, excel_file, progress_bar, progress_label):
-    processor = FileProcessor()
-    return processor.save_data_to_excel(data, excel_file, progress_bar, progress_label)

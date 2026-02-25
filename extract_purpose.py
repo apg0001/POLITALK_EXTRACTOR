@@ -256,7 +256,6 @@
 #         """
 #         cleaned_text = self.remove_quotes(body1)
 
-#         # 다수 발언자가 한 문장에 있는 경우, 먼저 해당 발언자(name)에 해당하는 분절만 남긴다.
 #         filtered_text = self._filter_text_for_speaker(cleaned_text, name)
 
 #         # 발언자 관련 불필요한 앞뒤 문구 제거

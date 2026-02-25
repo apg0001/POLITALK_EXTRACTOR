@@ -71,10 +71,6 @@ class CSVReader:
                     # 단문이면 바로 추가
                     if len(sentences) == 1:
                         add_flag = True
-                        # 단문일 때 주어의 개수를 구문 분석으로 계산
-                        # '은', '는', '도' 등의 조사가 붙은 주어의 개수만 집계
-                        subject_count = text_processor.count_subjects(clean_sentence)
-                        has_multiple_speakers = subject_count >= 2
                     else:
                         # 조사 판별: '은', '는'만 통과
                         for name in candidate_speakers:
@@ -100,9 +96,6 @@ class CSVReader:
                                 continue
                         else:
                             add_flag = True  # 주어 없으면 그대로 추가
-
-                        # 중문일 때는 다수 발언자 체크 안 함
-                        has_multiple_speakers = False
 
                     if not add_flag:
                         continue

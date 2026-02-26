@@ -6,12 +6,16 @@ from text_manager import nlp
 
 class DuplicateRemover:
     """중복 제거를 담당하는 클래스"""
-    
-    def __init__(self):
-        """DuplicateRemover 초기화"""
-        # 정규화 결과 캐시 (같은 문장에 대한 반복 분석 방지)
+
+    def __init__(self, debug=True):
+        """DuplicateRemover 초기화
+
+        Args:
+            debug (bool): True면 비교·삭제 내역을 콘솔에 출력
+        """
         self._normalization_cache = {}
-    
+        self.debug = debug
+
     def _normalize_quote(self, quote, use_cache=True):
         """큰따옴표 발언 정규화 (형태소 분석을 통한 원형 변환)
         
@@ -178,6 +182,16 @@ class DuplicateRemover:
             print("[중복 제거] 저장할 데이터가 없습니다.")
             return []
 
+        def _dbg(msg):
+            if self.debug:
+                print(f"[중복제거 디버그] {msg}")
+
+        def _quote_preview(text, max_len=60):
+            if not text:
+                return ""
+            s = text.replace("\n", " ").strip()
+            return (s[:max_len] + "…") if len(s) > max_len else s
+
         import time
         start_time = time.time()
         total_entries = len(data)
@@ -200,14 +214,16 @@ class DuplicateRemover:
             group_2 = [(i, e, q, n) for i, e, q, n in parsed if q and len(q) == 2]
             group_3plus = [(i, e, q, n) for i, e, q, n in parsed if q and len(q) >= 3]
 
-            # 비교용: "다른 모든 행"의 (원문, 정규화) 쌍 리스트 (인덱스 제외용은 나중에 반복에서 처리)
+            _dbg(f"그룹 크기: 1개 문장 행={len(group_1)}, 2개={len(group_2)}, 3개 이상={len(group_3plus)}")
+
+            # 비교용: "다른 모든 행"의 (행인덱스, 문장인덱스, 원문, 정규화) 리스트
             def all_quotes_except(entries, exclude_idx):
                 out = []
                 for i, _e, q, n in entries:
                     if i == exclude_idx or not q:
                         continue
                     for qi, (orig, norm_val) in enumerate(zip(q, n)):
-                        out.append((orig, norm_val))
+                        out.append((i, qi, orig, norm_val))
                 return out
 
             kept = []  # (original_index, entry_dict)
@@ -222,9 +238,14 @@ class DuplicateRemover:
                 my_q, my_n = quotes[0], norms[0]
                 others = all_quotes_except(group_1 + group_2 + group_3plus, exclude_idx=idx)
                 is_dup = False
-                for other_q, other_n in others:
+                for other_idx, other_qi, other_q, other_n in others:
                     if self._is_duplicate(my_n, other_n, quote_a=my_q, quote_b=other_q):
                         is_dup = True
+                        _dbg(
+                            f"[1단계] 행 idx={idx} 전체 제거 | "
+                            f"기준(삭제): 행{idx} 문장0 | 상대(유지): 행{other_idx} 문장{other_qi} | "
+                            f"비교문장: «{_quote_preview(my_q)}» ↔ «{_quote_preview(other_q)}»"
+                        )
                         break
                 if not is_dup:
                     kept.append((idx, entry))
@@ -238,11 +259,16 @@ class DuplicateRemover:
                 )
                 others = all_quotes_except(group_1 + group_2 + group_3plus, exclude_idx=idx)
                 new_quotes = []
-                for my_q, my_n in zip(quotes, norms):
+                for my_qi, (my_q, my_n) in enumerate(zip(quotes, norms)):
                     is_dup = False
-                    for other_q, other_n in others:
+                    for other_idx, other_qi, other_q, other_n in others:
                         if self._is_duplicate(my_n, other_n, quote_a=my_q, quote_b=other_q):
                             is_dup = True
+                            _dbg(
+                                f"[2단계] 행 idx={idx}에서 문장 제거 | "
+                                f"삭제: 행{idx} 문장{my_qi} | 기준(유지): 행{other_idx} 문장{other_qi} | "
+                                f"삭제문장: «{_quote_preview(my_q)}» ↔ 상대: «{_quote_preview(other_q)}»"
+                            )
                             break
                     if not is_dup:
                         new_quotes.append(my_q)
@@ -256,8 +282,8 @@ class DuplicateRemover:
             for i, _e, q, n in group_3plus:
                 if not q:
                     continue
-                for orig, norm_val in zip(q, n):
-                    only_3plus_quotes.append((i, orig, norm_val))
+                for qi, (orig, norm_val) in enumerate(zip(q, n)):
+                    only_3plus_quotes.append((i, qi, orig, norm_val))
 
             for pos, (idx, entry, quotes, norms) in enumerate(group_3plus):
                 progress_tracker.update_progress(
@@ -265,14 +291,19 @@ class DuplicateRemover:
                     "[4단계 중 3단계] 중복 제거 중 (3개 이상 문장 행)",
                     start_time
                 )
-                # 다른 3+ 행들의 모든 문장 (자기 행 제외)
-                others_3plus = [(o, no) for i, o, no in only_3plus_quotes if i != idx]
+                # 다른 3+ 행들의 모든 문장 (자기 행 제외): (행idx, 문장idx, 원문, 정규화)
+                others_3plus = [(i, oqi, o, no) for i, oqi, o, no in only_3plus_quotes if i != idx]
                 new_quotes = []
-                for my_q, my_n in zip(quotes, norms):
+                for my_qi, (my_q, my_n) in enumerate(zip(quotes, norms)):
                     is_dup = False
-                    for other_q, other_n in others_3plus:
+                    for other_idx, other_qi, other_q, other_n in others_3plus:
                         if self._is_duplicate(my_n, other_n, quote_a=my_q, quote_b=other_q):
                             is_dup = True
+                            _dbg(
+                                f"[3단계] 행 idx={idx}에서 문장 제거 | "
+                                f"삭제: 행{idx} 문장{my_qi} | 기준(유지): 행{other_idx} 문장{other_qi} | "
+                                f"삭제문장: «{_quote_preview(my_q)}» ↔ 상대: «{_quote_preview(other_q)}»"
+                            )
                             break
                     if not is_dup:
                         new_quotes.append(my_q)
@@ -283,6 +314,8 @@ class DuplicateRemover:
 
             # 원본 행 순서로 정렬 후 반환
             deduplicated_result = [entry for _idx, entry in sorted(kept, key=lambda x: x[0])]
+
+            _dbg(f"결과: 원본 {len(data)}행 → 중복 제거 후 {len(deduplicated_result)}행 유지")
 
             progress_tracker.update_progress(
                 total_entries, total_entries,
